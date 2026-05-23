@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
@@ -325,7 +326,10 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
           ) {
             NavigationBarItem(
               selected = currentTab == "home",
-              onClick = {},
+              onClick = {
+                handleBottomBarTap()
+                viewModel.currentTab = "home"
+              },
               icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Tab Moonzer") },
               label = { Text(stringResource(R.string.home_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -350,7 +354,10 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
 
             NavigationBarItem(
               selected = currentTab == "rate",
-              onClick = {},
+              onClick = {
+                handleBottomBarTap()
+                viewModel.currentTab = "rate"
+              },
               icon = { Icon(Icons.Filled.Star, contentDescription = "Tab Puan Ver") },
               label = { Text(stringResource(R.string.rate_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -375,7 +382,10 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
 
             NavigationBarItem(
               selected = currentTab == "about",
-              onClick = {},
+              onClick = {
+                handleBottomBarTap()
+                viewModel.currentTab = "about"
+              },
               icon = { Icon(Icons.Filled.Info, contentDescription = "Tab Hakkında") },
               label = { Text(stringResource(R.string.about_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -394,6 +404,34 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                   },
                   onLongClick = {
                     handleBottomBarLongPress()
+                  }
+                )
+            )
+
+            NavigationBarItem(
+              selected = false,
+              onClick = {
+                isBottomBarVisible = false
+                Toast.makeText(context, "Alt bar gizlendi. Yeniden açmak için soldaki simgeye dokunun.", Toast.LENGTH_SHORT).show()
+              },
+              icon = { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Tabı Gizle") },
+              label = { Text("Gizle ^", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+              colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = MoonWhite,
+                selectedTextColor = MoonGold,
+                indicatorColor = MoonGold.copy(alpha = 0.15f),
+                unselectedIconColor = MoonTextDim,
+                unselectedTextColor = MoonTextDim
+              ),
+              modifier = Modifier
+                .testTag("tab_hide")
+                .combinedClickable(
+                  onClick = {
+                    isBottomBarVisible = false
+                    Toast.makeText(context, "Alt bar gizlendi. Yeniden açmak için soldaki simgeye dokunun.", Toast.LENGTH_SHORT).show()
+                  },
+                  onLongClick = {
+                    isBottomBarVisible = false
                   }
                 )
             )

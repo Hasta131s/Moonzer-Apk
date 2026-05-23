@@ -199,6 +199,11 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
 
   if (fullscreenCustomView != null) {
     DisposableEffect(Unit) {
+      try {
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+      } catch (e: Exception) {
+        e.printStackTrace()
+      }
       activity?.window?.let { window ->
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
           window.insetsController?.let { controller ->
@@ -1052,7 +1057,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
                 "• Monokrom Premium Tema: Tüm mavi, sarı renk canlandırmaları kaldırılarak göz yormayan, saf düzey Siyah-Beyaz tonlarda kurumsal minimalist OLED teması geliştirildi.\n" +
                 "• Köşeli Minimalizm: Kurumsal formata uygun şekilde pencereler ve butonlar 4.dp olarak keskinleştirildi ('Köşeli Tasarım').\n" +
                 "• Geliştirici Blog Modülü: Gelişmeleri ve güncelleme raporlarını takip edebileceğiniz 'Yenilikler' mikroblogu eklendi.\n" +
-                "• Güçlü Geliştirici Kadrosu: Uygulamamıza batusql, furkanveraildez, Furkannysq ve techwizardi katkıda bulunanlar listesine dahil edildi."
+                "• Güçlü Geliştirici Kadrosu: Uygulamamıza batusql, verildez, Furkannysq ve techwizardi katkıda bulunanlar listesine dahil edildi."
     ),
     UpdateItem(
       version = "v1.1.0",
@@ -1310,11 +1315,11 @@ fun AboutScreen(innerPadding: PaddingValues) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
       ) {
         listOf(
-          "kayrasql" to "Proje Lideri & Geliştirici",
-          "batusql" to "Tasarım & UI Tasarımcısı",
-          "furkanveraildez" to "Medya Oynatıcı Entegratörü",
-          "Furkannysq" to "Optimizasyon & Test Mühendisi",
-          "techwizardi" to "Arka Plan Entegratörü"
+          "kayrasql" to "Kurucu",
+          "batusql" to "Yönetici",
+          "verildez" to "Yönetici",
+          "Furkannysq" to "UI Tasarımcısı",
+          "techwizardi" to "Geliştirici"
         ).forEach { (dev, role) ->
           Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1379,8 +1384,19 @@ fun AboutScreen(innerPadding: PaddingValues) {
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Text("Telif Hakkı Bildirimi (DMCA / Uyar-Kaldır)", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-          Text(if (showTelifHakkı) "Kapat -" else "Oku +", color = MoonWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+          Text(
+            text = "Telif Hakkı Bildirimi (DMCA / Uyar-Kaldır)",
+            color = MoonWhite,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f).padding(end = 8.dp)
+          )
+          Text(
+            text = if (showTelifHakkı) "Kapat -" else "Oku +",
+            color = MoonWhite,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+          )
         }
         if (showTelifHakkı) {
           Spacer(modifier = Modifier.height(10.dp))
@@ -1415,8 +1431,19 @@ fun AboutScreen(innerPadding: PaddingValues) {
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Text("Kullanım Koşulları ve Sözleşme", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-          Text(if (showKullanımKosulları) "Kapat -" else "Oku +", color = MoonWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+          Text(
+            text = "Kullanım Koşulları ve Sözleşme",
+            color = MoonWhite,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f).padding(end = 8.dp)
+          )
+          Text(
+            text = if (showKullanımKosulları) "Kapat -" else "Oku +",
+            color = MoonWhite,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+          )
         }
         if (showKullanımKosulları) {
           Spacer(modifier = Modifier.height(10.dp))

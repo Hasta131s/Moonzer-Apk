@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -297,12 +298,38 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
     }
   }
 
-  // Startup internet connection check
-  androidx.compose.runtime.LaunchedEffect(Unit) {
+  // Active background & foreground internet connectivity listener with auto-warning redirection
+  androidx.compose.runtime.DisposableEffect(context) {
+    val connectivityManager = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+    val networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
+      override fun onLost(network: android.net.Network) {
+        viewModel.webViewError = true
+        viewModel.isWebLoading = false
+        viewModel.currentTab = "home"
+      }
+    }
+    
+    // Immediate initial check on startup
     if (!viewModel.checkOnline()) {
+      viewModel.currentTab = "home"
       viewModel.webViewError = true
       viewModel.isWebLoading = false
-      Toast.makeText(context, "İnternet bağlantısı bulunamadı! Lütfen bağlantınızı kontrol edin.", Toast.LENGTH_LONG).show()
+    }
+
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+      try {
+        connectivityManager.registerDefaultNetworkCallback(networkCallback)
+      } catch (e: Exception) {
+        // Safe fallback
+      }
+    }
+    
+    onDispose {
+      try {
+        connectivityManager.unregisterNetworkCallback(networkCallback)
+      } catch (e: Exception) {
+        // Ignored
+      }
     }
   }
 
@@ -436,22 +463,7 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
               modifier = Modifier.testTag("tab_about")
             )
 
-            NavigationBarItem(
-              selected = false,
-              onClick = {
-                triggerHideBottomBar()
-              },
-              icon = { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Tabı Gizle") },
-              label = { Text("Gizle ^", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-              colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MoonWhite,
-                selectedTextColor = MoonGold,
-                indicatorColor = MoonGold.copy(alpha = 0.15f),
-                unselectedIconColor = MoonTextDim,
-                unselectedTextColor = MoonTextDim
-              ),
-              modifier = Modifier.testTag("tab_hide")
-            )
+
           }
         }
       }
@@ -508,13 +520,14 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
 
         // Floating trigger tab on bottom-left, shown ONLY when the main navigation bar is hidden
         // Placed at the very end of Box so that it always overlays all screens at the absolute front!
+        // Task 1: Positioned higher up (120.dp from bottom instead of 16.dp)
         AnimatedVisibility(
           visible = !isBottomBarVisible,
           enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
           exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
           modifier = Modifier
             .align(Alignment.BottomStart)
-            .padding(bottom = 16.dp, start = 0.dp)
+            .padding(bottom = 120.dp, start = 0.dp)
         ) {
           Box(
             modifier = Modifier
@@ -535,6 +548,35 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 .size(38.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .border(0.5.dp, MoonLightGray, RoundedCornerShape(4.dp))
+            )
+          }
+        }
+
+        // Floating hide button on bottom-right, shown ONLY when the main navigation bar is visible (Task 3)
+        AnimatedVisibility(
+          visible = isBottomBarVisible,
+          enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+          exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+          modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(bottom = 82.dp, end = 16.dp)
+        ) {
+          Box(
+            modifier = Modifier
+              .width(42.dp)
+              .height(42.dp)
+              .background(MoonDarkGray.copy(alpha = 0.85f), RoundedCornerShape(21.dp))
+              .border(0.8.dp, MoonLightGray, RoundedCornerShape(21.dp))
+              .clickable { 
+                triggerHideBottomBar()
+              },
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = Icons.Filled.KeyboardArrowDown,
+              contentDescription = "Alt Barı Gizle",
+              tint = MoonWhite,
+              modifier = Modifier.size(24.dp)
             )
           }
         }
@@ -574,12 +616,35 @@ fun MovieWebViewScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
       ) {
-        Icon(
-          imageVector = Icons.Filled.Warning,
-          contentDescription = "Kapalı / Hata",
-          tint = MoonGold,
-          modifier = Modifier.size(72.dp)
-        )
+        Box(
+          contentAlignment = Alignment.BottomEnd,
+          modifier = Modifier.padding(bottom = 12.dp)
+        ) {
+          AsyncImage(
+            model = "https://i.hizliresim.com/dt6pkuv.jpeg",
+            contentDescription = "Moonzer Logo",
+            modifier = Modifier
+              .size(110.dp)
+              .clip(RoundedCornerShape(8.dp))
+              .border(1.2.dp, MoonGold, RoundedCornerShape(8.dp))
+          )
+          
+          Box(
+            modifier = Modifier
+              .offset(x = 8.dp, y = 8.dp)
+              .size(32.dp)
+              .background(MoonBlack, RoundedCornerShape(16.dp))
+              .border(1.dp, MoonGold, RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = Icons.Filled.Warning,
+              contentDescription = "Hata",
+              tint = MoonGold,
+              modifier = Modifier.size(18.dp)
+            )
+          }
+        }
         
         Spacer(modifier = Modifier.height(20.dp))
         
@@ -1827,8 +1892,15 @@ fun showHideNotification(context: android.content.Context, show: Boolean) {
       android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
     )
 
+    val largeIconBitmap = try {
+      android.graphics.BitmapFactory.decodeResource(context.resources, com.example.R.mipmap.ic_launcher)
+    } catch (e: Exception) {
+      null
+    }
+
     val builder = androidx.core.app.NotificationCompat.Builder(context, channelId)
-      .setSmallIcon(android.R.drawable.ic_media_play)
+      .setSmallIcon(com.example.R.mipmap.ic_launcher)
+      .setLargeIcon(largeIconBitmap)
       .setContentTitle("Alt Bar Gizlendi 🎬")
       .setContentText("Alt barı yeniden aktif etmek için buraya dokunun.")
       .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)

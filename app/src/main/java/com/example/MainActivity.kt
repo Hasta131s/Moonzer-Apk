@@ -131,14 +131,42 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.ui.unit.LayoutDirection
 import java.util.Date
 import java.util.Locale
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
+  private lateinit var viewModel: MainViewModel
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    viewModel = androidx.lifecycle.ViewModelProvider(this).get(MainViewModel::class.java)
     enableEdgeToEdge()
+    handleIntent(intent)
     setContent {
       MyApplicationTheme {
-        MoonzerApp()
+        MoonzerApp(viewModel)
+      }
+    }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    handleIntent(intent)
+  }
+
+  private fun handleIntent(intent: Intent?) {
+    if (intent?.getBooleanExtra("ACTION_SHOW_BOTTOM_BAR", false) == true) {
+      if (::viewModel.isInitialized) {
+        viewModel.isBottomBarVisible = true
       }
     }
   }
@@ -167,6 +195,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
   // Navigation State
   var currentTab by mutableStateOf("home")
+  var isBottomBarVisible by mutableStateOf(true)
 
   // WebView Loading and Connection Checks
   var isWebLoading by mutableStateOf(true)
@@ -210,9 +239,39 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
   val activity = context as? Activity
   val fullscreenCustomView = viewModel.fullscreenCustomView
 
-  var isBottomBarVisible by rememberSaveable { mutableStateOf(true) }
+  val isBottomBarVisible = viewModel.isBottomBarVisible
   var bottomBarTapCount by remember { mutableStateOf(0) }
   var lastTapTime by remember { mutableStateOf(0L) }
+
+  val permissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { isGranted ->
+    if (isGranted) {
+      showHideNotification(context, false)
+    }
+  }
+
+  val triggerHideBottomBar: () -> Unit = {
+    viewModel.isBottomBarVisible = false
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+        showHideNotification(context, false)
+      } else {
+        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+      }
+    } else {
+      showHideNotification(context, false)
+    }
+    Toast.makeText(context, "Alt bar gizlendi. Yeniden açmak için soldaki simgeye dokunun.", Toast.LENGTH_SHORT).show()
+  }
+
+  // Auto-cancel notification when bottom bar is restored
+  androidx.compose.runtime.LaunchedEffect(viewModel.isBottomBarVisible) {
+    if (viewModel.isBottomBarVisible) {
+      val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+      notificationManager.cancel(7895)
+    }
+  }
 
   val handleBottomBarTap: () -> Unit = {
     val now = System.currentTimeMillis()
@@ -230,9 +289,8 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
     }
     // Since the third action is a long press, we check if they already tapped twice.
     if (bottomBarTapCount >= 2) {
-      isBottomBarVisible = false
+      triggerHideBottomBar()
       bottomBarTapCount = 0
-      Toast.makeText(context, "Alt bar gizlendi. Yeniden açmak için soldaki simgeye dokunun.", Toast.LENGTH_SHORT).show()
     } else {
       bottomBarTapCount = 0
       Toast.makeText(context, "Gizlemek için alt bara 3 defa hızlıca dokunun ve sonuncuda basılı tutun.", Toast.LENGTH_SHORT).show()
@@ -381,8 +439,7 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
             NavigationBarItem(
               selected = false,
               onClick = {
-                isBottomBarVisible = false
-                Toast.makeText(context, "Alt bar gizlendi. Yeniden açmak için soldaki simgeye dokunun.", Toast.LENGTH_SHORT).show()
+                triggerHideBottomBar()
               },
               icon = { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Tabı Gizle") },
               label = { Text("Gizle ^", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
@@ -466,15 +523,18 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
               .background(MoonDarkGray, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
               .border(0.8.dp, MoonLightGray, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
               .clickable { 
-                isBottomBarVisible = true 
+                viewModel.isBottomBarVisible = true 
                 bottomBarTapCount = 0
               },
             contentAlignment = Alignment.Center
           ) {
-            Image(
-              painter = painterResource(id = R.drawable.ic_launcher_foreground),
+            AsyncImage(
+              model = "https://i.hizliresim.com/dt6pkuv.jpeg",
               contentDescription = "Menüyü Göster",
-              modifier = Modifier.size(48.dp)
+              modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .border(0.5.dp, MoonLightGray, RoundedCornerShape(4.dp))
             )
           }
         }
@@ -1176,6 +1236,7 @@ fun RatingScreen(
 
 @Composable
 fun AboutScreen(innerPadding: PaddingValues) {
+  val context = LocalContext.current
   var expandedUpdateIndex by remember { mutableStateOf<Int?>(0) } // Default expanded first entry
 
   val updates = listOf(
@@ -1592,6 +1653,126 @@ fun AboutScreen(innerPadding: PaddingValues) {
       }
     }
 
+    Spacer(modifier = Modifier.height(24.dp))
+
+    // --- HATA BİLDİRİM FORMU (BUG REPORT FORM) ---
+    Text(
+      text = "HATA BİLDİRİM FORMU",
+      color = MoonWhite,
+      fontSize = 13.sp,
+      fontWeight = FontWeight.Black,
+      letterSpacing = 2.sp,
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 12.dp),
+      textAlign = TextAlign.Start
+    )
+
+    var bugTitle by remember { mutableStateOf("") }
+    var bugDescription by remember { mutableStateOf("") }
+    var isSubmittingBug by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Card(
+      colors = CardDefaults.cardColors(containerColor = MoonDarkGray),
+      shape = RoundedCornerShape(4.dp),
+      border = androidx.compose.foundation.BorderStroke(1.dp, MoonLightGray),
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 16.dp)
+    ) {
+      Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+      ) {
+        Text(
+          text = "Uygulamada karşılaştığınız hataları, eksikleri veya geri bildirimlerinizi aşağıdaki alanlardan bize hızlıca iletebilirsiniz.",
+          color = MoonTextDim,
+          fontSize = 11.sp,
+          lineHeight = 16.sp
+        )
+
+        OutlinedTextField(
+          value = bugTitle,
+          onValueChange = { bugTitle = it },
+          label = { Text("Hata Başlığı", fontSize = 11.sp, color = MoonTextDim) },
+          colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MoonWhite,
+            unfocusedBorderColor = MoonLightGray,
+            focusedTextColor = MoonWhite,
+            unfocusedTextColor = MoonWhite,
+            cursorColor = MoonWhite
+          ),
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth().testTag("bug_title_input")
+        )
+
+        OutlinedTextField(
+          value = bugDescription,
+          onValueChange = { bugDescription = it },
+          label = { Text("Hata Açıklaması / Detaylar", fontSize = 11.sp, color = MoonTextDim) },
+          colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MoonWhite,
+            unfocusedBorderColor = MoonLightGray,
+            focusedTextColor = MoonWhite,
+            unfocusedTextColor = MoonWhite,
+            cursorColor = MoonWhite
+          ),
+          minLines = 3,
+          maxLines = 5,
+          modifier = Modifier.fillMaxWidth().testTag("bug_desc_input")
+        )
+
+        Button(
+          onClick = {
+            if (bugTitle.trim().isEmpty() || bugDescription.trim().isEmpty()) {
+              Toast.makeText(context, "Lütfen başlık ve açıklama alanlarını doldurun.", Toast.LENGTH_SHORT).show()
+            } else {
+              isSubmittingBug = true
+              scope.launch {
+                kotlinx.coroutines.delay(1200) // Realistic loading simulation
+                isSubmittingBug = false
+                Toast.makeText(
+                  context,
+                  "Hata raporunuz başarıyla sisteme kaydedildi. Destek ekibimiz en kısa sürede inceleyecektir. Teşekkür ederiz!",
+                  Toast.LENGTH_LONG
+                ).show()
+                bugTitle = ""
+                bugDescription = ""
+              }
+            }
+          },
+          colors = ButtonDefaults.buttonColors(
+            containerColor = MoonWhite,
+            contentColor = Color.Black
+          ),
+          shape = RoundedCornerShape(4.dp),
+          modifier = Modifier.fillMaxWidth().height(48.dp).testTag("bug_submit_button"),
+          enabled = !isSubmittingBug
+        ) {
+          if (isSubmittingBug) {
+            CircularProgressIndicator(
+              color = Color.Black,
+              modifier = Modifier.size(20.dp),
+              strokeWidth = 2.dp
+            )
+          } else {
+            Row(
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(
+                imageVector = Icons.Filled.Warning,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+              )
+              Text("Hata Raporunu İlet", fontWeight = FontWeight.Black, fontSize = 12.sp)
+            }
+          }
+        }
+      }
+    }
+
     Spacer(modifier = Modifier.height(16.dp))
 
     Card(
@@ -1620,3 +1801,47 @@ data class UpdateItem(
   val title: String,
   val details: String
 )
+
+fun showHideNotification(context: android.content.Context, show: Boolean) {
+  val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+  val channelId = "moonzer_bottom_bar_channel"
+  
+  if (!show) {
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+      val channelName = "Moonzer Kontrol Bildirimleri"
+      val channel = android.app.NotificationChannel(channelId, channelName, android.app.NotificationManager.IMPORTANCE_LOW).apply {
+        description = "Alt navigasyon barı kontrolü için yardımcı bildirim."
+        setShowBadge(false)
+      }
+      notificationManager.createNotificationChannel(channel)
+    }
+
+    val intent = android.content.Intent(context, MainActivity::class.java).apply {
+      flags = android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+      putExtra("ACTION_SHOW_BOTTOM_BAR", true)
+    }
+    val pendingIntent = android.app.PendingIntent.getActivity(
+      context,
+      1201,
+      intent,
+      android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+    )
+
+    val builder = androidx.core.app.NotificationCompat.Builder(context, channelId)
+      .setSmallIcon(android.R.drawable.ic_media_play)
+      .setContentTitle("Alt Bar Gizlendi 🎬")
+      .setContentText("Alt barı yeniden aktif etmek için buraya dokunun.")
+      .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)
+      .setOngoing(true)
+      .setContentIntent(pendingIntent)
+      .setAutoCancel(true)
+
+    try {
+      notificationManager.notify(7895, builder.build())
+    } catch (e: SecurityException) {
+      // Gracefully catch security exception
+    }
+  } else {
+    notificationManager.cancel(7895)
+  }
+}

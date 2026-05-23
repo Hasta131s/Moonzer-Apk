@@ -10,7 +10,7 @@
         android:fillColor="#FFFFFF"
         android:pathData="M26,32 L52,50 L52,62 L26,76 Z" />
     <path
-        android:fillColor="#FFC107"
+        android:fillColor="#E0E0E0"
         android:pathData="M26,76 L36,76 L52,62 L52,50 Z" />
 
     <!-- Right: Stylized Owl Head and Eyes -->
@@ -30,15 +30,15 @@
         
     <!-- Owl Pupils -->
     <path
-        android:fillColor="#FFC107"
+        android:fillColor="#E0E0E0"
         android:pathData="M59,54 A1.5,1.5 0 1,1 62,54 A1.5,1.5 0 1,1 59,54 Z" />
     <path
-        android:fillColor="#FFC107"
+        android:fillColor="#E0E0E0"
         android:pathData="M74,54 A1.5,1.5 0 1,1 77,54 A1.5,1.5 0 1,1 74,54 Z" />
 
     <!-- Owl Beak -->
     <path
-        android:fillColor="#FFC107"
+        android:fillColor="#E0E0E0"
         android:pathData="M66,54 L70,54 L68,60 Z" />
 
     <!-- Subtle support feathers -->

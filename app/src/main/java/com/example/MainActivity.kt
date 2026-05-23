@@ -75,6 +75,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -308,32 +311,39 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
           .fillMaxSize()
           .background(MoonBlack)
       ) {
-        when (currentTab) {
-          "home" -> {
-            // Verify online connectivity state on load/retry
-            val isConnected = viewModel.checkOnline()
-            if (!isConnected) {
-              viewModel.webViewError = true
-              viewModel.isWebLoading = false
+        // Keep the MovieWebViewScreen ALWAYS alive in the hierarchy to save state and cache
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+              // Hide visually and disable pointer inputs when not active, but keep composition intact!
+              alpha = if (currentTab == "home") 1f else 0f
             }
+        ) {
+          // Verify online connectivity state on load/retry
+          val isConnected = viewModel.checkOnline()
+          if (!isConnected) {
+            viewModel.webViewError = true
+            viewModel.isWebLoading = false
+          }
 
-            MovieWebViewScreen(
-              url = "https://moonzer.bilipbilmeden.com",
-              innerPadding = innerPadding,
-              viewModel = viewModel
-            )
-          }
-          "rate" -> {
-            RatingScreen(
-              ratings = ratings,
-              average = avgRating,
-              innerPadding = innerPadding,
-              onSubmit = { name, stars, text -> viewModel.insertRating(name, stars, text) }
-            )
-          }
-          "about" -> {
-            AboutScreen(innerPadding = innerPadding)
-          }
+          MovieWebViewScreen(
+            url = "https://moonzer.bilipbilmeden.com",
+            innerPadding = innerPadding,
+            viewModel = viewModel
+          )
+        }
+
+        // Overlay other tabs as standard Compose elements when selected
+        if (currentTab == "rate") {
+          RatingScreen(
+            ratings = ratings,
+            average = avgRating,
+            innerPadding = innerPadding,
+            onSubmit = { name, stars, text -> viewModel.insertRating(name, stars, text) }
+          )
+        } else if (currentTab == "about") {
+          AboutScreen(innerPadding = innerPadding)
         }
       }
     }
@@ -497,7 +507,7 @@ fun MovieWebViewScreen(
                 
                 try {
                   val activity = context as? Activity
-                  activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                  activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
                 } catch (e: Exception) {
                   e.printStackTrace()
                 }
@@ -563,6 +573,33 @@ fun RatingScreen(
   var selectedStars by remember { mutableIntStateOf(5) }
   var feedbackText by remember { mutableStateOf("") }
   var hasSubmitted by remember { mutableStateOf(false) }
+
+  var showAllComments by remember { mutableStateOf(false) }
+  var sortOrder by remember { mutableStateOf("newest") } // "newest", "popular", "lowest"
+  var pageIndex by remember { mutableStateOf(0) }
+
+  val sortedRatings = remember(ratings, sortOrder) {
+    when (sortOrder) {
+      "popular" -> ratings.sortedWith(compareByDescending<UserRating> { it.stars }.thenByDescending { it.timestamp })
+      "lowest" -> ratings.sortedWith(compareBy<UserRating> { it.stars }.thenByDescending { it.timestamp })
+      else -> ratings.sortedByDescending { it.timestamp }
+    }
+  }
+
+  val pageSize = 5
+  val totalPages = (sortedRatings.size + pageSize - 1) / pageSize
+  val paginatedRatings = remember(sortedRatings, pageIndex) {
+    if (totalPages <= 0) emptyList()
+    else {
+      val start = pageIndex * pageSize
+      val end = minOf(start + pageSize, sortedRatings.size)
+      if (start < sortedRatings.size) {
+        sortedRatings.subList(start, end)
+      } else {
+        emptyList()
+      }
+    }
+  }
 
   LazyColumn(
     modifier = Modifier
@@ -800,76 +837,198 @@ fun RatingScreen(
       }
     }
 
-    // Historical ratings lists
-    if (ratings.isNotEmpty()) {
-      item {
-        Text(
-          text = "Son Yapılan Yorumlar",
-          color = MoonWhite,
-          fontWeight = FontWeight.Bold,
-          fontSize = 16.sp,
-          modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-        )
-      }
-
-      items(ratings) { rating ->
-        Card(
-          colors = CardDefaults.cardColors(containerColor = MoonDarkGray.copy(alpha = 0.5f)),
-          shape = RoundedCornerShape(4.dp), // Corporate sharp shape
-          border = androidx.compose.foundation.BorderStroke(0.6.dp, MoonLightGray),
-          modifier = Modifier.fillMaxWidth()
+    // Historical ratings lists with toggle button, sorting filters and pagination
+    item {
+      Spacer(modifier = Modifier.height(10.dp))
+      Button(
+        onClick = { showAllComments = !showAllComments },
+        colors = ButtonDefaults.buttonColors(
+          containerColor = if (showAllComments) MoonWhite else MoonDarkGray,
+          contentColor = if (showAllComments) Color.Black else MoonWhite
+        ),
+        shape = RoundedCornerShape(4.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MoonLightGray),
+        modifier = Modifier.fillMaxWidth().height(48.dp)
+      ) {
+        Row(
+          horizontalArrangement = Arrangement.Center,
+          verticalAlignment = Alignment.CenterVertically
         ) {
-          Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Column {
+          Icon(
+            imageVector = Icons.Filled.Info,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = if (showAllComments) "Geri Bildirimleri Gizle" else "Geri Bildirimleri Göster (${ratings.size} Yorum)",
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+          )
+        }
+      }
+    }
+
+    if (showAllComments) {
+      if (ratings.isNotEmpty()) {
+        item {
+          Text(
+            text = "Kullanıcı Geri Bildirimleri (${ratings.size} toplam)",
+            color = MoonWhite,
+            fontWeight = FontWeight.Black,
+            fontSize = 15.sp,
+            modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+          )
+        }
+
+        // Sorting toggles
+        item {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text(
+              text = "Sırala:",
+              color = MoonTextDim,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold
+            )
+            
+            listOf("newest" to "En Yeni", "popular" to "Popüler", "lowest" to "En Düşük").forEach { (id, label) ->
+              val isSelected = sortOrder == id
+              Box(
+                modifier = Modifier
+                  .background(if (isSelected) MoonWhite else MoonMediumGray, RoundedCornerShape(4.dp))
+                  .border(0.8.dp, MoonLightGray, RoundedCornerShape(4.dp))
+                  .clickable { 
+                    sortOrder = id 
+                    pageIndex = 0 // Reset to page 1
+                  }
+                  .padding(horizontal = 10.dp, vertical = 6.dp)
+              ) {
                 Text(
-                  text = rating.userName,
-                  color = MoonGold,
-                  fontSize = 13.sp,
+                  text = label,
+                  color = if (isSelected) Color.Black else MoonWhite,
+                  fontSize = 11.sp,
                   fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row {
-                  repeat(5) { idx ->
-                    Icon(
-                      imageVector = Icons.Filled.Star,
-                      contentDescription = null,
-                      tint = if (idx < rating.stars) MoonGold else MoonGold.copy(alpha = 0.25f),
-                      modifier = Modifier.size(12.dp)
-                    )
-                  }
-                }
               }
-              val df = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
-              Text(
-                text = df.format(Date(rating.timestamp)),
-                color = MoonTextDim,
-                fontSize = 11.sp
-              )
-            }
-            if (rating.feedback.isNotBlank()) {
-              Spacer(modifier = Modifier.height(8.dp))
-              Text(
-                text = rating.feedback,
-                color = MoonWhite,
-                fontSize = 13.sp,
-                lineHeight = 18.sp
-              )
             }
           }
         }
-      }
-    } else {
-      item {
-        Box(
-          modifier = Modifier.fillMaxWidth().padding(vertical = 30.dp),
-          contentAlignment = Alignment.Center
-        ) {
-          Text("Henüz bir puan verilmedi. İlk puanı siz verin!", color = MoonTextDim, fontSize = 12.sp)
+
+        // Paginated items
+        items(paginatedRatings) { rating ->
+          Card(
+            colors = CardDefaults.cardColors(containerColor = MoonDarkGray.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(4.dp), // Corporate sharp shape
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, MoonLightGray),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Column {
+                  Text(
+                    text = rating.userName,
+                    color = MoonGold,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                  )
+                  Spacer(modifier = Modifier.height(4.dp))
+                  Row {
+                    repeat(5) { idx ->
+                      Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = if (idx < rating.stars) MoonGold else MoonGold.copy(alpha = 0.25f),
+                        modifier = Modifier.size(12.dp)
+                      )
+                    }
+                  }
+                }
+                val df = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+                Text(
+                  text = df.format(Date(rating.timestamp)),
+                  color = MoonTextDim,
+                  fontSize = 11.sp
+                )
+              }
+              if (rating.feedback.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                  text = rating.feedback,
+                  color = MoonWhite,
+                  fontSize = 13.sp,
+                  lineHeight = 18.sp
+                )
+              }
+            }
+          }
+        }
+
+        // Pagination controls
+        if (totalPages > 1) {
+          item {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Button(
+                onClick = { if (pageIndex > 0) pageIndex-- },
+                enabled = pageIndex > 0,
+                colors = ButtonDefaults.buttonColors(
+                  containerColor = MoonMediumGray,
+                  disabledContainerColor = MoonMediumGray.copy(alpha = 0.2f),
+                  contentColor = MoonWhite,
+                  disabledContentColor = MoonTextDim
+                ),
+                shape = RoundedCornerShape(4.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.height(34.dp)
+              ) {
+                Text("< Önceki", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+              }
+
+              Text(
+                text = "Sayfa ${pageIndex + 1} / $totalPages",
+                color = MoonWhite,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
+              )
+
+              Button(
+                onClick = { if (pageIndex < totalPages - 1) pageIndex++ },
+                enabled = pageIndex < totalPages - 1,
+                colors = ButtonDefaults.buttonColors(
+                  containerColor = MoonMediumGray,
+                  disabledContainerColor = MoonMediumGray.copy(alpha = 0.2f),
+                  contentColor = MoonWhite,
+                  disabledContentColor = MoonTextDim
+                ),
+                shape = RoundedCornerShape(4.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.height(34.dp)
+              ) {
+                Text("Sonraki >", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+              }
+            }
+          }
+        }
+      } else {
+        item {
+          Box(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 30.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Text("Henüz bir puan verilmedi. İlk puanı siz verin!", color = MoonTextDim, fontSize = 12.sp)
+          }
         }
       }
     }
@@ -928,7 +1087,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
     Text(
       text = "ANDROID PREMIUM SYSTEM",
       style = TextStyle(
-        color = MoonGold,
+        color = MoonWhite,
         fontSize = 10.sp,
         fontWeight = FontWeight.Black,
         letterSpacing = 4.sp,
@@ -938,60 +1097,17 @@ fun AboutScreen(innerPadding: PaddingValues) {
 
     Spacer(modifier = Modifier.height(18.dp))
 
-    // Sharp corporate themed Crescent Moon Box (Köşeli modern)
-    Box(
+    // Sharp corporate themed Logo (Loaded from specified URL)
+    AsyncImage(
+      model = "https://i.hizliresim.com/dt6pkuv.jpeg",
+      contentDescription = "Moonzer Logo",
+      contentScale = ContentScale.Crop,
       modifier = Modifier
         .size(120.dp)
-        .background(MoonDarkGray, RoundedCornerShape(4.dp))
-        .border(1.dp, MoonLightGray, RoundedCornerShape(4.dp)),
-      contentAlignment = Alignment.Center
-    ) {
-      Canvas(modifier = Modifier.size(80.dp)) {
-        // Draw elegant crescent moon using White
-        drawArc(
-          color = MoonWhite,
-          startAngle = -45f,
-          sweepAngle = 180f,
-          useCenter = false,
-          style = Stroke(width = 6f),
-          topLeft = Offset(8f, 8f),
-          size = size * 0.8f
-        )
-        
-        // Draw stylized owl face circles (eyes)
-        drawCircle(
-          color = MoonWhite,
-          radius = 9f,
-          center = Offset(size.width * 0.4f, size.height * 0.55f),
-          style = Stroke(width = 3f)
-        )
-        drawCircle(
-          color = MoonWhite,
-          radius = 9f,
-          center = Offset(size.width * 0.65f, size.height * 0.55f),
-          style = Stroke(width = 3f)
-        )
-        // Pupils
-        drawCircle(
-          color = MoonWhite,
-          radius = 3.5f,
-          center = Offset(size.width * 0.4f, size.height * 0.55f)
-        )
-        drawCircle(
-          color = MoonWhite,
-          radius = 3.5f,
-          center = Offset(size.width * 0.65f, size.height * 0.55f)
-        )
-        
-        // Soft beak triangle
-        drawLine(
-          color = MoonWhite,
-          start = Offset(size.width * 0.525f, size.height * 0.61f),
-          end = Offset(size.width * 0.525f, size.height * 0.68f),
-          strokeWidth = 3f
-        )
-      }
-    }
+        .clip(RoundedCornerShape(4.dp))
+        .background(MoonDarkGray)
+        .border(1.dp, MoonLightGray, RoundedCornerShape(4.dp))
+    )
 
     Spacer(modifier = Modifier.height(20.dp))
 
@@ -1003,7 +1119,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
         fontWeight = FontWeight.Black,
         fontFamily = FontFamily.SansSerif,
         textAlign = TextAlign.Center,
-        shadow = Shadow(color = MoonGold.copy(alpha = 0.35f), blurRadius = 14f)
+        shadow = Shadow(color = MoonWhite.copy(alpha = 0.25f), blurRadius = 14f)
       )
     )
 
@@ -1140,26 +1256,11 @@ fun AboutScreen(innerPadding: PaddingValues) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.Top
-        ) {
-          Text("Emeği Geçenler", color = MoonTextDim, fontSize = 13.sp)
-          Column(horizontalAlignment = Alignment.End) {
-            Text("kayrasql", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text("batusql", color = MoonWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Text("furkanveraildez", color = MoonWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Text("Furkannysq", color = MoonWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Text("techwizardi", color = MoonWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-          }
-        }
-
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Text("Uygulama Versiyonu", color = MoonTextDim, fontSize = 13.sp)
+          Text("Sürüm", color = MoonTextDim, fontSize = 13.sp)
           Text(
-            text = "1.2.0 (Premium build)",
+            text = "1.2.0 (Premium Build)",
             color = MoonWhite,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
@@ -1172,46 +1273,165 @@ fun AboutScreen(innerPadding: PaddingValues) {
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Text("Tema", color = MoonTextDim, fontSize = 13.sp)
-          Text("Premium Monokrom OLED", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          Text("Yayın Tarihi", color = MoonTextDim, fontSize = 13.sp)
+          Text(
+            text = "23.05.2026",
+            color = MoonWhite,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium
+          )
         }
+      }
+    }
 
-        // Divider
-        Spacer(
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(MoonLightGray)
-        )
+    Spacer(modifier = Modifier.height(24.dp))
 
+    // --- EMEĞİ GEÇENLER (CONTRIBUTORS) ---
+    Text(
+      text = "EMEĞİ GEÇENLER",
+      color = MoonWhite,
+      fontSize = 13.sp,
+      fontWeight = FontWeight.Black,
+      letterSpacing = 2.sp,
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 12.dp),
+      textAlign = TextAlign.Start
+    )
+
+    Card(
+      colors = CardDefaults.cardColors(containerColor = MoonDarkGray),
+      shape = RoundedCornerShape(4.dp),
+      border = androidx.compose.foundation.BorderStroke(1.dp, MoonLightGray),
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        listOf(
+          "kayrasql" to "Proje Lideri & Geliştirici",
+          "batusql" to "Tasarım & UI Tasarımcısı",
+          "furkanveraildez" to "Medya Oynatıcı Entegratörü",
+          "Furkannysq" to "Optimizasyon & Test Mühendisi",
+          "techwizardi" to "Arka Plan Entegratörü"
+        ).forEach { (dev, role) ->
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              Box(
+                modifier = Modifier
+                  .size(8.dp)
+                  .background(MoonWhite, CircleShape)
+              )
+              Text(
+                text = dev,
+                color = MoonWhite,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = FontFamily.Monospace
+              )
+            }
+            Text(
+              text = role,
+              color = MoonTextDim,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Medium
+            )
+          }
+        }
+      }
+    }
+
+    // --- YASAL MEVZUAT VE SAVUNMALAR ---
+    Spacer(modifier = Modifier.height(24.dp))
+    Text(
+      text = "YASAL MEVZUAT VE SAVUNMALAR",
+      color = MoonWhite,
+      fontSize = 13.sp,
+      fontWeight = FontWeight.Black,
+      letterSpacing = 2.sp,
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 12.dp),
+      textAlign = TextAlign.Start
+    )
+
+    var showTelifHakkı by remember { mutableStateOf(false) }
+    var showKullanımKosulları by remember { mutableStateOf(false) }
+
+    // Telif Hakkı (DMCA) Button & Box
+    Card(
+      colors = CardDefaults.cardColors(containerColor = MoonDarkGray),
+      shape = RoundedCornerShape(4.dp),
+      border = androidx.compose.foundation.BorderStroke(1.dp, MoonLightGray),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { showTelifHakkı = !showTelifHakkı }
+        .padding(bottom = 10.dp)
+    ) {
+      Column(modifier = Modifier.padding(14.dp).animateContentSize()) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
+          Text("Telif Hakkı Bildirimi (DMCA / Uyar-Kaldır)", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+          Text(if (showTelifHakkı) "Kapat -" else "Oku +", color = MoonWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        if (showTelifHakkı) {
+          Spacer(modifier = Modifier.height(10.dp))
+          Spacer(modifier = Modifier.fillMaxWidth().height(0.6.dp).background(MoonLightGray))
+          Spacer(modifier = Modifier.height(10.dp))
           Text(
-            text = "APK_ID: MOON_02_ULTRA",
-            color = MoonTextDim.copy(alpha = 0.6f),
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace
+            text = "Moonzer (moonzer.bilipbilmeden.com), 5651 sayılı kanunda tanımlanan 'yer sağlayıcı' statüsünde hizmet vermektedir. Uygulamamız üzerinden erişim sağlanan hiçbir görsel, ses ve video içeriği tarafımıza ait sunucularda barındırılmamakta, kopyalanmamakta veya doğrudan yayınlanmamaktadır. Tüm yayınlar tamamen üçüncü taraf video ve dizi/film platformlarının (Ember oynatıcısı, stream kanalları vb.) halka açık bağlantılarından çekilmektedir.\n\n" +
+                  "Moonzer, yasal hak sahiplerinin haklarına azami saygı göstermeyi ve 'Uyar-Kaldır' prensibini işletmeyi taahhüt eder. Herhangi bir video veya içeriğin telif haklarınızı ihlal ettiğini düşünüyorsanız, öncelikle ilgili asıl oynatıcı/hosting sağlayıcı firmayla (embed videoların asıl barındığı yerler) irtibata geçip yayından kaldırma talebinde bulunmalısınız. Asıl sunucudan kaldırılan videolar uygulamamızdan da otomatik olarak silinecektir.\n\n" +
+                  "Buna rağmen, uygulamamız üzerinden sağlanan API ve arama entegrasyonlarının da kaldırılmasını istiyorsanız; uyuşmazlığa konu olan resmi telif hakkı belgeleriyle birlikte kayrasql@moonzer.com mail adresine başvurduğunuz takdirde, ilgili içerik bağlantısı en geç 3 (üç) iş günü içinde sistem veri tabanımızdan kalıcı olarak engellenecek ve erişime kapatılacaktır.",
+            color = MoonTextDim,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            textAlign = TextAlign.Start
           )
-          
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-          ) {
-            Box(
-              modifier = Modifier
-                .size(6.dp)
-                .background(Color(0xFF22C55E), CircleShape)
-            )
-            Text(
-              text = "SİSTEM ÇEVRİMİÇİ",
-              color = Color(0xFF22C55E),
-              fontSize = 10.sp,
-              fontWeight = FontWeight.Black
-            )
-          }
+        }
+      }
+    }
+
+    // Kullanım Koşulları Card
+    Card(
+      colors = CardDefaults.cardColors(containerColor = MoonDarkGray),
+      shape = RoundedCornerShape(4.dp),
+      border = androidx.compose.foundation.BorderStroke(1.dp, MoonLightGray),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { showKullanımKosulları = !showKullanımKosulları }
+        .padding(bottom = 14.dp)
+    ) {
+      Column(modifier = Modifier.padding(14.dp).animateContentSize()) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text("Kullanım Koşulları ve Sözleşme", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+          Text(if (showKullanımKosulları) "Kapat -" else "Oku +", color = MoonWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        if (showKullanımKosulları) {
+          Spacer(modifier = Modifier.height(10.dp))
+          Spacer(modifier = Modifier.fillMaxWidth().height(0.6.dp).background(MoonLightGray))
+          Spacer(modifier = Modifier.height(10.dp))
+          Text(
+            text = "1. Kabul Edilme Şartları: Moonzer uygulamasını cep telefonunuza veya tabletinize kurarak ve kullanarak, bu sözleşmenin tüm maddelerini peşinen kabul etmiş sayılırsınız.\n\n" +
+                  "2. Arama Motoru ve İndeksleme Sorumluluğu: Bu yazılım, tamamen ücretsiz bir film, dizi ve belgesel arama kılavuzudur. İnternet dünyasında açık protokollerle yayımlanan video oynatıcıları tarar, yapılandırır ve listeler. Kullanıcılar, erişilen oynatıcıların içeriksel uygunluğunu bizzat değerlendirmekle mükelleftir. Oynatıcılardan kaynaklanan reklamlar, yönlendirmeler veya veri indirme yükümlülükleri tamamen üçüncü şahıs sağlayıcılarına aittir.\n\n" +
+                  "3. Hukuki Sorumluluğun REDDİ: Sunulan hizmetlerin kesintisiz çalışması garanti edilmemektedir. Yayıncı sitelerin link değiştirmesi, sunucularını kapatması veya yayın haklarında kısıtlamaya gitmesi halinde ilgili içerikler kullanılamaz hale gelebilir. Moonzer platform geliştiricileri, haksız fiil, telif uyuşmazlığı, asıl video sağlayıcı kusurları veya kullanıcı kaynaklı hukuki problemlerden doğrudan yahut dolaylı olarak asla sorumlu tutulamaz.\n\n" +
+                  "4. Mücbir Sebepler ve Değişiklik Hakları: Uygulama yönetimi, gerekli durumlarda kullanım koşullarını güncelleme, uygulamayı süresiz olarak durdurma veya sunucu bağlantı ayarlarını tek taraflı olarak revize etme hakkını saklı tutar.",
+            color = MoonTextDim,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            textAlign = TextAlign.Start
+          )
         }
       }
     }
@@ -1234,7 +1454,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
       )
     }
 
-    Spacer(modifier = Modifier.height(40.dp))
+    Spacer(modifier = Modifier.height(120.dp)) // Restores generous bottom margin to clear soft bottom navigation keys
   }
 }
 

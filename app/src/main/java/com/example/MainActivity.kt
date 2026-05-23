@@ -339,17 +339,7 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier
-                .testTag("tab_home")
-                .combinedClickable(
-                  onClick = {
-                    handleBottomBarTap()
-                    viewModel.currentTab = "home"
-                  },
-                  onLongClick = {
-                    handleBottomBarLongPress()
-                  }
-                )
+              modifier = Modifier.testTag("tab_home")
             )
 
             NavigationBarItem(
@@ -367,17 +357,7 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier
-                .testTag("tab_rate")
-                .combinedClickable(
-                  onClick = {
-                    handleBottomBarTap()
-                    viewModel.currentTab = "rate"
-                  },
-                  onLongClick = {
-                    handleBottomBarLongPress()
-                  }
-                )
+              modifier = Modifier.testTag("tab_rate")
             )
 
             NavigationBarItem(
@@ -395,17 +375,7 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier
-                .testTag("tab_about")
-                .combinedClickable(
-                  onClick = {
-                    handleBottomBarTap()
-                    viewModel.currentTab = "about"
-                  },
-                  onLongClick = {
-                    handleBottomBarLongPress()
-                  }
-                )
+              modifier = Modifier.testTag("tab_about")
             )
 
             NavigationBarItem(
@@ -423,17 +393,7 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier
-                .testTag("tab_hide")
-                .combinedClickable(
-                  onClick = {
-                    isBottomBarVisible = false
-                    Toast.makeText(context, "Alt bar gizlendi. Yeniden açmak için soldaki simgeye dokunun.", Toast.LENGTH_SHORT).show()
-                  },
-                  onLongClick = {
-                    isBottomBarVisible = false
-                  }
-                )
+              modifier = Modifier.testTag("tab_hide")
             )
           }
         }
@@ -444,35 +404,6 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
           .fillMaxSize()
           .background(MoonBlack)
       ) {
-        // Floating trigger tab on bottom-left, shown ONLY when the main navigation bar is hidden
-        AnimatedVisibility(
-          visible = !isBottomBarVisible,
-          enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
-          exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
-          modifier = Modifier
-            .align(Alignment.BottomStart)
-            .padding(bottom = 16.dp, start = 0.dp)
-        ) {
-          Box(
-            modifier = Modifier
-              .width(56.dp)
-              .height(56.dp)
-              .background(MoonDarkGray, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
-              .border(0.8.dp, MoonLightGray, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
-              .clickable { 
-                isBottomBarVisible = true 
-                bottomBarTapCount = 0
-              },
-            contentAlignment = Alignment.Center
-          ) {
-            Image(
-              painter = painterResource(id = R.drawable.ic_launcher_foreground),
-              contentDescription = "Menüyü Göster",
-              modifier = Modifier.size(48.dp)
-            )
-          }
-        }
-
         // Keep the MovieWebViewScreen ALWAYS alive in the hierarchy to save state and cache
         Box(
           modifier = Modifier
@@ -516,6 +447,36 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
           )
         } else if (currentTab == "about") {
           AboutScreen(innerPadding = innerPadding)
+        }
+
+        // Floating trigger tab on bottom-left, shown ONLY when the main navigation bar is hidden
+        // Placed at the very end of Box so that it always overlays all screens at the absolute front!
+        AnimatedVisibility(
+          visible = !isBottomBarVisible,
+          enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+          exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
+          modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(bottom = 16.dp, start = 0.dp)
+        ) {
+          Box(
+            modifier = Modifier
+              .width(56.dp)
+              .height(56.dp)
+              .background(MoonDarkGray, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
+              .border(0.8.dp, MoonLightGray, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
+              .clickable { 
+                isBottomBarVisible = true 
+                bottomBarTapCount = 0
+              },
+            contentAlignment = Alignment.Center
+          ) {
+            Image(
+              painter = painterResource(id = R.drawable.ic_launcher_foreground),
+              contentDescription = "Menüyü Göster",
+              modifier = Modifier.size(48.dp)
+            )
+          }
         }
       }
     }

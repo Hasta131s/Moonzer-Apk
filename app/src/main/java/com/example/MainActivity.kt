@@ -81,6 +81,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -273,6 +274,7 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
       }
     }
   } else {
+    val scope = rememberCoroutineScope()
     Scaffold(
       modifier = Modifier.fillMaxSize().background(MoonBlack),
       bottomBar = {
@@ -291,14 +293,17 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
               .pointerInput(Unit) {
                 detectTapGestures(
                   onLongPress = {
-                    isBottomBarVisible = false
+                    scope.launch {
+                      kotlinx.coroutines.delay(100)
+                      isBottomBarVisible = false
+                    }
                   }
                 )
               }
           ) {
             NavigationBarItem(
               selected = currentTab == "home",
-              onClick = {},
+              onClick = { viewModel.currentTab = "home" },
               icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Tab Moonzer") },
               label = { Text(stringResource(R.string.home_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -308,19 +313,12 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier
-                .testTag("tab_home")
-                .pointerInput(Unit) {
-                  detectTapGestures(
-                    onTap = { viewModel.currentTab = "home" },
-                    onLongPress = { isBottomBarVisible = false }
-                  )
-                }
+              modifier = Modifier.testTag("tab_home")
             )
 
             NavigationBarItem(
               selected = currentTab == "rate",
-              onClick = {},
+              onClick = { viewModel.currentTab = "rate" },
               icon = { Icon(Icons.Filled.Star, contentDescription = "Tab Puan Ver") },
               label = { Text(stringResource(R.string.rate_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -330,19 +328,12 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier
-                .testTag("tab_rate")
-                .pointerInput(Unit) {
-                  detectTapGestures(
-                    onTap = { viewModel.currentTab = "rate" },
-                    onLongPress = { isBottomBarVisible = false }
-                  )
-                }
+              modifier = Modifier.testTag("tab_rate")
             )
 
             NavigationBarItem(
               selected = currentTab == "about",
-              onClick = {},
+              onClick = { viewModel.currentTab = "about" },
               icon = { Icon(Icons.Filled.Info, contentDescription = "Tab Hakkında") },
               label = { Text(stringResource(R.string.about_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -352,14 +343,7 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier
-                .testTag("tab_about")
-                .pointerInput(Unit) {
-                  detectTapGestures(
-                    onTap = { viewModel.currentTab = "about" },
-                    onLongPress = { isBottomBarVisible = false }
-                  )
-                }
+              modifier = Modifier.testTag("tab_about")
             )
           }
         }
@@ -622,6 +606,8 @@ fun MovieWebViewScreen(
         },
         update = { webView ->
           webViewInstance = webView
+          val isVisible = viewModel.currentTab == "home"
+          webView.visibility = if (isVisible) android.view.View.VISIBLE else android.view.View.INVISIBLE
         }
       )
 

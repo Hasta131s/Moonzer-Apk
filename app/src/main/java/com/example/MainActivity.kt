@@ -15,13 +15,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,12 +45,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -198,6 +197,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
   val currentTab = viewModel.currentTab
@@ -318,16 +318,10 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
               .navigationBarsPadding()
               .height(68.dp)
               .border(width = 0.8.dp, color = MoonLightGray, shape = RoundedCornerShape(0.dp)) // Corporate sharp look
-              .pointerInput(Unit) {
-                detectTapGestures(
-                  onTap = {
-                    handleBottomBarTap()
-                  },
-                  onLongPress = {
-                    handleBottomBarLongPress()
-                  }
-                )
-              }
+              .combinedClickable(
+                onClick = { handleBottomBarTap() },
+                onLongClick = { handleBottomBarLongPress() }
+              )
           ) {
             NavigationBarItem(
               selected = currentTab == "home",
@@ -343,17 +337,15 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
               ),
               modifier = Modifier
                 .testTag("tab_home")
-                .pointerInput(Unit) {
-                  detectTapGestures(
-                    onTap = {
-                      handleBottomBarTap()
-                      viewModel.currentTab = "home"
-                    },
-                    onLongPress = {
-                      handleBottomBarLongPress()
-                    }
-                  )
-                }
+                .combinedClickable(
+                  onClick = {
+                    handleBottomBarTap()
+                    viewModel.currentTab = "home"
+                  },
+                  onLongClick = {
+                    handleBottomBarLongPress()
+                  }
+                )
             )
 
             NavigationBarItem(
@@ -370,17 +362,15 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
               ),
               modifier = Modifier
                 .testTag("tab_rate")
-                .pointerInput(Unit) {
-                  detectTapGestures(
-                    onTap = {
-                      handleBottomBarTap()
-                      viewModel.currentTab = "rate"
-                    },
-                    onLongPress = {
-                      handleBottomBarLongPress()
-                    }
-                  )
-                }
+                .combinedClickable(
+                  onClick = {
+                    handleBottomBarTap()
+                    viewModel.currentTab = "rate"
+                  },
+                  onLongClick = {
+                    handleBottomBarLongPress()
+                  }
+                )
             )
 
             NavigationBarItem(
@@ -397,17 +387,15 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
               ),
               modifier = Modifier
                 .testTag("tab_about")
-                .pointerInput(Unit) {
-                  detectTapGestures(
-                    onTap = {
-                      handleBottomBarTap()
-                      viewModel.currentTab = "about"
-                    },
-                    onLongPress = {
-                      handleBottomBarLongPress()
-                    }
-                  )
-                }
+                .combinedClickable(
+                  onClick = {
+                    handleBottomBarTap()
+                    viewModel.currentTab = "about"
+                  },
+                  onLongClick = {
+                    handleBottomBarLongPress()
+                  }
+                )
             )
           }
         }
@@ -468,6 +456,16 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
             innerPadding = innerPadding,
             viewModel = viewModel
           )
+
+          // Block all background clicks from leaking to background WebView
+          if (currentTab != "home") {
+            Box(
+              modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Transparent)
+                .clickable(enabled = true, onClick = { /* Consumes click completely */ })
+            )
+          }
         }
 
         // Overlay other tabs as standard Compose elements when selected

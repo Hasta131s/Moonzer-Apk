@@ -14,6 +14,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import android.app.Activity
+import android.content.pm.ActivityInfo
+import androidx.compose.runtime.DisposableEffect
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -75,12 +78,12 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.random.Random
 
-// Unique branding color accent for Netflix experience style (Moonzer Crimson Red)
-val MoonRed = Color(0xFFE50914)
-val DarkBackground = Color(0xFF0C0C0C)
-val SurfaceCard = Color(0xFF161616)
-val BorderColor = Color(0x33FFFFFF)
-val TextDim = Color(0xFF8E8E93)
+// Unique branding color accent for Netflix experience style (Moonzer Premium Warm Rust)
+val MoonRed = Color(0xFFAE5941)
+val DarkBackground = Color(0xFF181818)
+val SurfaceCard = Color(0xFF242424)
+val BorderColor = Color(0x22FFFFFF)
+val TextDim = Color(0xFFB5B5B5)
 val GoldColor = Color(0xFFFFD700)
 
 class MainActivity : ComponentActivity() {
@@ -132,10 +135,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Local Watch History & Search History flows
     val watchHistoryList = MutableStateFlow<List<Movie>>(emptyList())
+    val watchlistList = MutableStateFlow<List<Movie>>(emptyList())
+    val hiddenList = MutableStateFlow<List<String>>(emptyList())
     val searchHistoryList = MutableStateFlow<List<SearchHistory>>(emptyList())
 
     // All Local Movies stored in Room
     val localMovieList = movieDao.getAllMovies().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val recommendedMovies = combine(localMovieList, watchHistoryList, hiddenList) { movies, history, hidden ->
+        val visibleMovies = movies.filter { movie ->
+            movie.imdbID !in hidden && 
+            movie.poster.isNotEmpty() && 
+            movie.poster != "N/A" && 
+            !movie.poster.contains("placeholder") && 
+            !movie.poster.contains("unsplash.com")
+        }
+        
+        if (history.isEmpty()) {
+            visibleMovies.filter { it.categories.contains("popular") }.shuffled().take(10)
+        } else {
+            val watchedCategoryCounts = mutableMapOf<String, Int>()
+            for (watchedMovie in history) {
+                val cats = watchedMovie.categories.split(",").map { it.trim().lowercase() }
+                for (cat in cats) {
+                    if (cat != "movies" && cat != "series" && cat != "new") {
+                        watchedCategoryCounts[cat] = (watchedCategoryCounts[cat] ?: 0) + 1
+                    }
+                }
+            }
+            
+            val favoriteCategories = watchedCategoryCounts.entries
+                .sortedByDescending { it.value }
+                .map { it.key }
+                .take(3)
+                
+            if (favoriteCategories.isEmpty()) {
+                visibleMovies.shuffled().take(10)
+            } else {
+                val watchedImdbIds = history.map { it.imdbID }.toSet()
+                val targetMovies = visibleMovies.filter { movie ->
+                    movie.imdbID !in watchedImdbIds && 
+                    movie.categories.split(",").map { it.trim().lowercase() }.any { it in favoriteCategories }
+                }
+                
+                if (targetMovies.size >= 4) {
+                    targetMovies.sortedByDescending { m ->
+                        m.categories.split(",").map { it.trim().lowercase() }.count { it in favoriteCategories }
+                    }.take(10)
+                } else {
+                    (targetMovies + visibleMovies.filter { it.categories.split(",").map { it.trim().lowercase() }.any { it in favoriteCategories } })
+                        .distinctBy { it.imdbID }
+                        .take(10)
+                }
+            }
+        }
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
@@ -189,6 +247,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch {
+            // Keep watchlist up to date for currentUser
+            snapshotFlow { currentUser.value }.collectLatest { user ->
+                if (user != null) {
+                    db.watchlistDao().getWatchlistForUser(user.id).collectLatest { wl ->
+                        val list = mutableListOf<Movie>()
+                        for (w in wl) {
+                            movieDao.getMovieByImdbId(w.imdbID)?.let { list.add(it) }
+                        }
+                        watchlistList.value = list
+                    }
+                } else {
+                    watchlistList.value = emptyList()
+                }
+            }
+        }
+        viewModelScope.launch {
+            // Keep hidden movies up to date for currentUser
+            snapshotFlow { currentUser.value }.collectLatest { user ->
+                if (user != null) {
+                    db.hiddenMovieDao().getHiddenMoviesForUser(user.id).collectLatest { hl ->
+                        hiddenList.value = hl.map { it.imdbID }
+                    }
+                } else {
+                    hiddenList.value = emptyList()
+                }
+            }
+        }
+        viewModelScope.launch {
             // Keep search history up to date for currentUser
             snapshotFlow { currentUser.value }.collectLatest { user ->
                 if (user != null) {
@@ -199,6 +285,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     searchHistoryList.value = emptyList()
                 }
             }
+        }
+    }
+
+    fun toggleWatchlist(imdbID: String) {
+        viewModelScope.launch {
+            val user = currentUser.value ?: return@launch
+            val exists = db.watchlistDao().isInWatchlist(user.id, imdbID)
+            if (exists) {
+                db.watchlistDao().deleteWatchlistEntry(user.id, imdbID)
+            } else {
+                db.watchlistDao().insertWatchlist(WatchlistMovie(userId = user.id, imdbID = imdbID))
+            }
+        }
+    }
+
+    fun isMovieInWatchlistFlow(imdbID: String): Flow<Boolean> {
+        return watchlistList.map { list -> list.any { it.imdbID == imdbID } }
+    }
+
+    fun hideMovie(imdbID: String) {
+        viewModelScope.launch {
+            val user = currentUser.value ?: return@launch
+            db.hiddenMovieDao().insertHiddenMovie(HiddenMovie(userId = user.id, imdbID = imdbID))
         }
     }
 
@@ -314,12 +423,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // Let's create primary Admin in Local User Database if not exists
-            if (userDao.getUserByUsername("admin") == null) {
+            if (userDao.getUserByUsername("kayra@gmail.com") == null) {
                 userDao.insertUser(
                     User(
-                        username = "admin",
-                        email = "admin@moonzer.com",
-                        passwordHash = "Admin123!",
+                        username = "kayra@gmail.com",
+                        email = "kayra@gmail.com",
+                        passwordHash = "Kayra31",
                         role = "admin",
                         avatarUrl = "https://i.hizliresim.com/smgvufn.png"
                     )
@@ -554,6 +663,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
                 movieDao.incrementViews(imdbID)
+
+                // Dynamic category assignment on watch
+                movieDao.getMovieByImdbId(imdbID)?.let { movie ->
+                    val normTitle = movie.title.lowercase()
+                    val addedCats = mutableListOf<String>()
+                    if (normTitle.contains("ivedik") || normTitle.contains("komedi") || normTitle.contains("şaban") || normTitle.contains("recep")) {
+                        addedCats.add("komedi")
+                        addedCats.add("yerli")
+                    }
+                    if (normTitle.contains("dram") || normTitle.contains("drama") || normTitle.contains("bedeli")) {
+                        addedCats.add("drama")
+                    }
+                    if (normTitle.contains("diriliş") || normTitle.contains("osman") || normTitle.contains("türk") || normTitle.contains("yerli")) {
+                        addedCats.add("yerli")
+                        addedCats.add("action")
+                    }
+                    
+                    if (addedCats.isNotEmpty()) {
+                        val currentCats = movie.categories.split(",").map { it.trim().lowercase() }.toMutableSet()
+                        var modified = false
+                        for (cat in addedCats) {
+                            if (!currentCats.contains(cat)) {
+                                currentCats.add(cat)
+                                modified = true
+                            }
+                        }
+                        if (modified) {
+                            val updatedMovie = movie.copy(categories = currentCats.joinToString(","))
+                            movieDao.insertMovie(updatedMovie)
+                        }
+                    }
+                }
             }
         }
     }
@@ -994,6 +1135,7 @@ fun MainAppScaffold(viewModel: MainViewModel) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    var currentTabSelector by remember { mutableStateOf("movies") } // "movies", "search", "history", "rating", "watchlist"
 
     val localMovies by viewModel.localMovieList.collectAsState()
     val history by viewModel.watchHistoryList.collectAsState()
@@ -1089,6 +1231,28 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                     }
 
                     NavigationDrawerItem(
+                        label = { Text("İzleme Listem", color = Color.White) },
+                        selected = currentTabSelector == "watchlist",
+                        onClick = {
+                            currentTabSelector = "watchlist"
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = { Icon(Icons.Filled.Bookmark, contentDescription = null, tint = MoonRed) },
+                        modifier = Modifier.padding(vertical = 4.dp).testTag("sidebar_watchlist_button")
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Puan Ver & Geri Bildirim", color = Color.White) },
+                        selected = currentTabSelector == "rating",
+                        onClick = {
+                            currentTabSelector = "rating"
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = { Icon(Icons.Filled.Star, contentDescription = null, tint = MoonRed) },
+                        modifier = Modifier.padding(vertical = 4.dp).testTag("sidebar_rating_button")
+                    )
+
+                    NavigationDrawerItem(
                         label = { Text("Uygulama Sözleşmeleri", color = Color.White) },
                         selected = false,
                         onClick = {
@@ -1117,8 +1281,6 @@ fun MainAppScaffold(viewModel: MainViewModel) {
             }
         }
     ) {
-        var currentTabSelector by remember { mutableStateOf("movies") } // "movies", "search", "history", "rating"
-
         Scaffold(
             topBar = {
                 LargeTopAppBar(
@@ -1223,12 +1385,14 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                     "search" -> InteractiveSearchScreen(viewModel = viewModel)
                     "history" -> UsersWatchHistoryScreen(viewModel = viewModel, historyList = history)
                     "rating" -> RatingCenterScreen(viewModel = viewModel)
+                    "watchlist" -> WatchlistScreen(viewModel = viewModel)
                 }
 
                 // Render dynamic item details popup as bottom overlay
                 if (viewModel.activeDetailMovie.value != null) {
                     DetailOverlayPopup(
                         movie = viewModel.activeDetailMovie.value!!,
+                        viewModel = viewModel,
                         onDismiss = { viewModel.activeDetailMovie.value = null },
                         onPlay = { item ->
                             viewModel.currentUser.value?.let { _ ->
@@ -1251,17 +1415,31 @@ fun MainAppScaffold(viewModel: MainViewModel) {
 @Composable
 fun LobbyScreen(viewModel: MainViewModel, localMovies: List<Movie>, watchHistory: List<Movie>) {
     val context = LocalContext.current
+    val hiddenList by viewModel.hiddenList.collectAsState()
+    val recommendedList by viewModel.recommendedMovies.collectAsState()
+    val watchlistList by viewModel.watchlistList.collectAsState()
+
+    // Filter valid movies block (No missing posters, and not hidden)
+    val validMovies = remember(localMovies, hiddenList) {
+        localMovies.filter { movie ->
+            movie.imdbID !in hiddenList &&
+            movie.poster.isNotEmpty() &&
+            movie.poster != "N/A" &&
+            !movie.poster.contains("placeholder") &&
+            !movie.poster.contains("unsplash.com")
+        }
+    }
 
     // Categorized lists
-    val popularList = remember(localMovies) {
-        localMovies.filter { it.categories.contains("popular") }
+    val popularList = remember(validMovies) {
+        validMovies.filter { it.categories.contains("popular") }
     }
-    val newList = remember(localMovies) {
-        localMovies.filter { it.categories.contains("new") }
+    val newList = remember(validMovies) {
+        validMovies.filter { it.categories.contains("new") }
     }
-    val filteredMovies = remember(localMovies, viewModel.activeCategoryFilter) {
-        if (viewModel.activeCategoryFilter == "all") localMovies
-        else localMovies.filter { it.categories.contains(viewModel.activeCategoryFilter) }
+    val filteredMovies = remember(validMovies, viewModel.activeCategoryFilter) {
+        if (viewModel.activeCategoryFilter == "all") validMovies
+        else validMovies.filter { it.categories.contains(viewModel.activeCategoryFilter) }
     }
 
     LazyColumn(
@@ -1269,8 +1447,8 @@ fun LobbyScreen(viewModel: MainViewModel, localMovies: List<Movie>, watchHistory
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         // High Quality Hero Image Banner representation at top if there are movies
-        if (localMovies.isNotEmpty()) {
-            val featured = localMovies.firstOrNull()
+        if (validMovies.isNotEmpty()) {
+            val featured = validMovies.firstOrNull()
             item {
                 Box(
                     modifier = Modifier
@@ -1355,11 +1533,99 @@ fun LobbyScreen(viewModel: MainViewModel, localMovies: List<Movie>, watchHistory
                             }
                         }
                     }
+
+                    // 3-dots Menu top right of Hero banner
+                    var showHeroMenu by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                    ) {
+                        IconButton(
+                            onClick = { showHeroMenu = true },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), shape = CircleShape)
+                                .size(36.dp)
+                                .testTag("hero_menu_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MoreVert,
+                                contentDescription = "Daha Fazla",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showHeroMenu,
+                            onDismissRequest = { showHeroMenu = false },
+                            modifier = Modifier.background(SurfaceCard)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Bunu Önerme / Gizle", color = Color.White) },
+                                leadingIcon = { Icon(Icons.Filled.VisibilityOff, contentDescription = null, tint = MoonRed) },
+                                onClick = {
+                                    showHeroMenu = false
+                                    featured?.let { f ->
+                                        viewModel.hideMovie(f.imdbID)
+                                        Toast.makeText(context, "${f.title} gizlendi.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
 
         if (viewModel.activeCategoryFilter == "all") {
+            // Personalized dynamic recommendation row
+            if (recommendedList.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Size Özel Önerilenler",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(recommendedList) { movie ->
+                            MoviePosterCard(movie = movie) {
+                                viewModel.loadFullMovieDetails(movie.imdbID) {}
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Watchlist row
+            if (watchlistList.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "İzleme Listem (Sonradan İzle)",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(watchlistList) { movie ->
+                            MoviePosterCard(movie = movie) {
+                                viewModel.loadFullMovieDetails(movie.imdbID) {}
+                            }
+                        }
+                    }
+                }
+            }
+
             // General Netflix Category rows representation
             if (watchHistory.isNotEmpty()) {
                 item {
@@ -1850,7 +2116,9 @@ fun RatingCenterScreen(viewModel: MainViewModel) {
 // -------------------------------------------------------------
 
 @Composable
-fun DetailOverlayPopup(movie: Movie, onDismiss: () -> Unit, onPlay: (Movie) -> Unit) {
+fun DetailOverlayPopup(movie: Movie, viewModel: MainViewModel, onDismiss: () -> Unit, onPlay: (Movie) -> Unit) {
+    val isInWatchlist by viewModel.isMovieInWatchlistFlow(movie.imdbID).collectAsState(initial = false)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1931,7 +2199,28 @@ fun DetailOverlayPopup(movie: Movie, onDismiss: () -> Unit, onPlay: (Movie) -> U
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Şimdi Full İzle", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { viewModel.toggleWatchlist(movie.imdbID) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isInWatchlist) Color.Gray else MoonRed
+                            ),
+                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("popup_watchlist_btn"),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Icon(
+                                if (isInWatchlist) Icons.Filled.Check else Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                if (isInWatchlist) "Sözleşmeli Listenden Çıkar" else "İzleme Listeme Ekle",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = "Kategoriler: " + movie.categories.split(",").joinToString(" | ") { it.replaceFirstChar { c->c.uppercase() } },
                             color = MoonRed,
@@ -1971,6 +2260,15 @@ fun DetailOverlayPopup(movie: Movie, onDismiss: () -> Unit, onPlay: (Movie) -> U
 fun VideoStreamingScreen(movie: Movie, onDismiss: () -> Unit) {
     val playUrl = "https://www.playimdb.com/title/${movie.imdbID}/"
     val context = LocalContext.current
+
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        val originalOrientation = activity?.requestedOrientation
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        onDispose {
+            activity?.requestedOrientation = originalOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -2340,5 +2638,78 @@ fun LegalAboutScreen(onBack: () -> Unit) {
 @Composable
 fun AboutScreen(innerPadding: PaddingValues) {
     LegalAboutScreen {}
+}
+
+@Composable
+fun WatchlistScreen(viewModel: MainViewModel) {
+    val watchlistList by viewModel.watchlistList.collectAsState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBackground)
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "İzleme Listeniz",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "${watchlistList.size} İçerik",
+                color = TextDim,
+                fontSize = 14.sp
+            )
+        }
+        
+        if (watchlistList.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Filled.Bookmark,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "İzleme listeniz henüz boş.",
+                        color = Color.LightGray,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Detay ekranından içerikleri listenize ekleyebilirsiniz.",
+                        color = Color.Gray,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(watchlistList) { movie ->
+                    MoviePosterCard(movie = movie, showTitle = true) {
+                        viewModel.loadFullMovieDetails(movie.imdbID) {}
+                    }
+                }
+            }
+        }
+    }
 }
 

@@ -55,6 +55,22 @@ data class WatchHistory(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "watchlist_movies")
+data class WatchlistMovie(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userId: Int,
+    val imdbID: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "hidden_movies")
+data class HiddenMovie(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userId: Int,
+    val imdbID: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "search_history")
 data class SearchHistory(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -94,7 +110,7 @@ interface UserDao {
     @Query("SELECT * FROM users ORDER BY createdAt DESC")
     fun getAllUsers(): Flow<List<User>>
 
-    @Query("SELECT * FROM users WHERE username = :username LIMIT 1")
+    @Query("SELECT * FROM users WHERE username = :username OR email = :username LIMIT 1")
     suspend fun getUserByUsername(username: String): User?
 
     @Query("SELECT * FROM users WHERE id = :userId LIMIT 1")
@@ -158,6 +174,36 @@ interface SessionDao {
     suspend fun insertSession(session: Session)
 }
 
+@Dao
+interface WatchlistDao {
+    @Query("SELECT * FROM watchlist_movies WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getWatchlistForUser(userId: Int): Flow<List<WatchlistMovie>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWatchlist(movie: WatchlistMovie)
+
+    @Query("DELETE FROM watchlist_movies WHERE userId = :userId AND imdbID = :imdbID")
+    suspend fun deleteWatchlistEntry(userId: Int, imdbID: String)
+    
+    @Query("SELECT EXISTS(SELECT 1 FROM watchlist_movies WHERE userId = :userId AND imdbID = :imdbID)")
+    suspend fun isInWatchlist(userId: Int, imdbID: String): Boolean
+}
+
+@Dao
+interface HiddenMovieDao {
+    @Query("SELECT * FROM hidden_movies WHERE userId = :userId")
+    fun getHiddenMoviesForUser(userId: Int): Flow<List<HiddenMovie>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHiddenMovie(movie: HiddenMovie)
+
+    @Query("DELETE FROM hidden_movies WHERE userId = :userId AND imdbID = :imdbID")
+    suspend fun deleteHiddenMovie(userId: Int, imdbID: String)
+    
+    @Query("SELECT EXISTS(SELECT 1 FROM hidden_movies WHERE userId = :userId AND imdbID = :imdbID)")
+    suspend fun isHidden(userId: Int, imdbID: String): Boolean
+}
+
 // -------------------------------------------------------------
 // DATABASE
 // -------------------------------------------------------------
@@ -169,9 +215,11 @@ interface SessionDao {
         Movie::class,
         WatchHistory::class,
         SearchHistory::class,
-        Session::class
+        Session::class,
+        WatchlistMovie::class,
+        HiddenMovie::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -181,6 +229,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun watchDao(): WatchDao
     abstract fun searchDao(): SearchDao
     abstract fun sessionDao(): SessionDao
+    abstract fun watchlistDao(): WatchlistDao
+    abstract fun hiddenMovieDao(): HiddenMovieDao
 }
 
 // -------------------------------------------------------------

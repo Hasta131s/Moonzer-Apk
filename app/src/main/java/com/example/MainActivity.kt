@@ -41,6 +41,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.saveable.rememberSaveable
+import android.widget.Toast
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextOverflow
@@ -197,6 +206,17 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
   val activity = context as? Activity
   val fullscreenCustomView = viewModel.fullscreenCustomView
 
+  var isBottomBarVisible by rememberSaveable { mutableStateOf(true) }
+
+  // Startup internet connection check
+  androidx.compose.runtime.LaunchedEffect(Unit) {
+    if (!viewModel.checkOnline()) {
+      viewModel.webViewError = true
+      viewModel.isWebLoading = false
+      Toast.makeText(context, "İnternet bağlantısı bulunamadı! Lütfen bağlantınızı kontrol edin.", Toast.LENGTH_LONG).show()
+    }
+  }
+
   if (fullscreenCustomView != null) {
     DisposableEffect(Unit) {
       try {
@@ -256,58 +276,92 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
     Scaffold(
       modifier = Modifier.fillMaxSize().background(MoonBlack),
       bottomBar = {
-        NavigationBar(
-          containerColor = Color(0xB3000000), // Glassmorphic translucent pure OLED black with high blur aesthetic
-          tonalElevation = 0.dp,
-          modifier = Modifier
-            .navigationBarsPadding()
-            .height(68.dp)
-            .border(width = 0.8.dp, color = MoonLightGray, shape = RoundedCornerShape(0.dp)) // Corporate sharp look
+        AnimatedVisibility(
+          visible = isBottomBarVisible,
+          enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+          exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
         ) {
-          NavigationBarItem(
-            selected = currentTab == "home",
-            onClick = { viewModel.currentTab = "home" },
-            icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Tab Moonzer") },
-            label = { Text(stringResource(R.string.home_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-            colors = NavigationBarItemDefaults.colors(
-              selectedIconColor = MoonWhite,
-              selectedTextColor = MoonGold,
-              indicatorColor = MoonGold.copy(alpha = 0.15f),
-              unselectedIconColor = MoonTextDim,
-              unselectedTextColor = MoonTextDim
-            ),
-            modifier = Modifier.testTag("tab_home")
-          )
+          NavigationBar(
+            containerColor = Color(0xB3000000), // Glassmorphic translucent pure OLED black with high blur aesthetic
+            tonalElevation = 0.dp,
+            modifier = Modifier
+              .navigationBarsPadding()
+              .height(68.dp)
+              .border(width = 0.8.dp, color = MoonLightGray, shape = RoundedCornerShape(0.dp)) // Corporate sharp look
+              .pointerInput(Unit) {
+                detectTapGestures(
+                  onLongPress = {
+                    isBottomBarVisible = false
+                  }
+                )
+              }
+          ) {
+            NavigationBarItem(
+              selected = currentTab == "home",
+              onClick = {},
+              icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Tab Moonzer") },
+              label = { Text(stringResource(R.string.home_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+              colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = MoonWhite,
+                selectedTextColor = MoonGold,
+                indicatorColor = MoonGold.copy(alpha = 0.15f),
+                unselectedIconColor = MoonTextDim,
+                unselectedTextColor = MoonTextDim
+              ),
+              modifier = Modifier
+                .testTag("tab_home")
+                .pointerInput(Unit) {
+                  detectTapGestures(
+                    onTap = { viewModel.currentTab = "home" },
+                    onLongPress = { isBottomBarVisible = false }
+                  )
+                }
+            )
 
-          NavigationBarItem(
-            selected = currentTab == "rate",
-            onClick = { viewModel.currentTab = "rate" },
-            icon = { Icon(Icons.Filled.Star, contentDescription = "Tab Puan Ver") },
-            label = { Text(stringResource(R.string.rate_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-            colors = NavigationBarItemDefaults.colors(
-              selectedIconColor = MoonWhite,
-              selectedTextColor = MoonGold,
-              indicatorColor = MoonGold.copy(alpha = 0.15f),
-              unselectedIconColor = MoonTextDim,
-              unselectedTextColor = MoonTextDim
-            ),
-            modifier = Modifier.testTag("tab_rate")
-          )
+            NavigationBarItem(
+              selected = currentTab == "rate",
+              onClick = {},
+              icon = { Icon(Icons.Filled.Star, contentDescription = "Tab Puan Ver") },
+              label = { Text(stringResource(R.string.rate_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+              colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = MoonWhite,
+                selectedTextColor = MoonGold,
+                indicatorColor = MoonGold.copy(alpha = 0.15f),
+                unselectedIconColor = MoonTextDim,
+                unselectedTextColor = MoonTextDim
+              ),
+              modifier = Modifier
+                .testTag("tab_rate")
+                .pointerInput(Unit) {
+                  detectTapGestures(
+                    onTap = { viewModel.currentTab = "rate" },
+                    onLongPress = { isBottomBarVisible = false }
+                  )
+                }
+            )
 
-          NavigationBarItem(
-            selected = currentTab == "about",
-            onClick = { viewModel.currentTab = "about" },
-            icon = { Icon(Icons.Filled.Info, contentDescription = "Tab Hakkında") },
-            label = { Text(stringResource(R.string.about_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-            colors = NavigationBarItemDefaults.colors(
-              selectedIconColor = MoonWhite,
-              selectedTextColor = MoonGold,
-              indicatorColor = MoonGold.copy(alpha = 0.15f),
-              unselectedIconColor = MoonTextDim,
-              unselectedTextColor = MoonTextDim
-            ),
-            modifier = Modifier.testTag("tab_about")
-          )
+            NavigationBarItem(
+              selected = currentTab == "about",
+              onClick = {},
+              icon = { Icon(Icons.Filled.Info, contentDescription = "Tab Hakkında") },
+              label = { Text(stringResource(R.string.about_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+              colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = MoonWhite,
+                selectedTextColor = MoonGold,
+                indicatorColor = MoonGold.copy(alpha = 0.15f),
+                unselectedIconColor = MoonTextDim,
+                unselectedTextColor = MoonTextDim
+              ),
+              modifier = Modifier
+                .testTag("tab_about")
+                .pointerInput(Unit) {
+                  detectTapGestures(
+                    onTap = { viewModel.currentTab = "about" },
+                    onLongPress = { isBottomBarVisible = false }
+                  )
+                }
+            )
+          }
         }
       }
     ) { innerPadding ->
@@ -316,6 +370,33 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
           .fillMaxSize()
           .background(MoonBlack)
       ) {
+        // Floating trigger tab on bottom-left, shown ONLY when the main navigation bar is hidden
+        AnimatedVisibility(
+          visible = !isBottomBarVisible,
+          enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+          exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
+          modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(bottom = 16.dp, start = 0.dp)
+        ) {
+          Box(
+            modifier = Modifier
+              .width(48.dp)
+              .height(48.dp)
+              .background(MoonDarkGray, RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+              .border(0.8.dp, MoonLightGray, RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+              .clickable { isBottomBarVisible = true },
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = Icons.Filled.PlayArrow,
+              contentDescription = "Menüyü Göster",
+              tint = MoonWhite,
+              modifier = Modifier.size(20.dp)
+            )
+          }
+        }
+
         // Keep the MovieWebViewScreen ALWAYS alive in the hierarchy to save state and cache
         Box(
           modifier = Modifier
@@ -1057,7 +1138,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
                 "• Monokrom Premium Tema: Tüm mavi, sarı renk canlandırmaları kaldırılarak göz yormayan, saf düzey Siyah-Beyaz tonlarda kurumsal minimalist OLED teması geliştirildi.\n" +
                 "• Köşeli Minimalizm: Kurumsal formata uygun şekilde pencereler ve butonlar 4.dp olarak keskinleştirildi ('Köşeli Tasarım').\n" +
                 "• Geliştirici Blog Modülü: Gelişmeleri ve güncelleme raporlarını takip edebileceğiniz 'Yenilikler' mikroblogu eklendi.\n" +
-                "• Güçlü Geliştirici Kadrosu: Uygulamamıza batusql, verildez, Furkannysq ve techwizardi katkıda bulunanlar listesine dahil edildi."
+                "• Güçlü Geliştirici Kadrosu: Uygulamamıza batusql, veraildex, Furkannysq ve techwizardi katkıda bulunanlar listesine dahil edildi."
     ),
     UpdateItem(
       version = "v1.1.0",
@@ -1317,7 +1398,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
         listOf(
           "kayrasql" to "Kurucu",
           "batusql" to "Yönetici",
-          "verildez" to "Yönetici",
+          "veraildex" to "Yönetici",
           "Furkannysq" to "UI Tasarımcısı",
           "techwizardi" to "Geliştirici"
         ).forEach { (dev, role) ->

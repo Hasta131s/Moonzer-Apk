@@ -85,6 +85,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -93,6 +94,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -208,6 +210,33 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
   val fullscreenCustomView = viewModel.fullscreenCustomView
 
   var isBottomBarVisible by rememberSaveable { mutableStateOf(true) }
+  var bottomBarTapCount by remember { mutableStateOf(0) }
+  var lastTapTime by remember { mutableStateOf(0L) }
+
+  val handleBottomBarTap: () -> Unit = {
+    val now = System.currentTimeMillis()
+    if (now - lastTapTime > 1500) {
+      bottomBarTapCount = 0
+    }
+    lastTapTime = now
+    bottomBarTapCount++
+  }
+
+  val handleBottomBarLongPress: () -> Unit = {
+    val now = System.currentTimeMillis()
+    if (now - lastTapTime > 1500) {
+      bottomBarTapCount = 0
+    }
+    // Since the third action is a long press, we check if they already tapped twice.
+    if (bottomBarTapCount >= 2) {
+      isBottomBarVisible = false
+      bottomBarTapCount = 0
+      Toast.makeText(context, "Alt bar gizlendi. Yeniden açmak için soldaki simgeye dokunun.", Toast.LENGTH_SHORT).show()
+    } else {
+      bottomBarTapCount = 0
+      Toast.makeText(context, "Gizlemek için alt bara 3 defa hızlıca dokunun ve sonuncuda basılı tutun.", Toast.LENGTH_SHORT).show()
+    }
+  }
 
   // Startup internet connection check
   androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -274,7 +303,6 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
       }
     }
   } else {
-    val scope = rememberCoroutineScope()
     Scaffold(
       modifier = Modifier.fillMaxSize().background(MoonBlack),
       bottomBar = {
@@ -292,18 +320,18 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
               .border(width = 0.8.dp, color = MoonLightGray, shape = RoundedCornerShape(0.dp)) // Corporate sharp look
               .pointerInput(Unit) {
                 detectTapGestures(
+                  onTap = {
+                    handleBottomBarTap()
+                  },
                   onLongPress = {
-                    scope.launch {
-                      kotlinx.coroutines.delay(100)
-                      isBottomBarVisible = false
-                    }
+                    handleBottomBarLongPress()
                   }
                 )
               }
           ) {
             NavigationBarItem(
               selected = currentTab == "home",
-              onClick = { viewModel.currentTab = "home" },
+              onClick = {},
               icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Tab Moonzer") },
               label = { Text(stringResource(R.string.home_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -313,12 +341,24 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier.testTag("tab_home")
+              modifier = Modifier
+                .testTag("tab_home")
+                .pointerInput(Unit) {
+                  detectTapGestures(
+                    onTap = {
+                      handleBottomBarTap()
+                      viewModel.currentTab = "home"
+                    },
+                    onLongPress = {
+                      handleBottomBarLongPress()
+                    }
+                  )
+                }
             )
 
             NavigationBarItem(
               selected = currentTab == "rate",
-              onClick = { viewModel.currentTab = "rate" },
+              onClick = {},
               icon = { Icon(Icons.Filled.Star, contentDescription = "Tab Puan Ver") },
               label = { Text(stringResource(R.string.rate_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -328,12 +368,24 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier.testTag("tab_rate")
+              modifier = Modifier
+                .testTag("tab_rate")
+                .pointerInput(Unit) {
+                  detectTapGestures(
+                    onTap = {
+                      handleBottomBarTap()
+                      viewModel.currentTab = "rate"
+                    },
+                    onLongPress = {
+                      handleBottomBarLongPress()
+                    }
+                  )
+                }
             )
 
             NavigationBarItem(
               selected = currentTab == "about",
-              onClick = { viewModel.currentTab = "about" },
+              onClick = {},
               icon = { Icon(Icons.Filled.Info, contentDescription = "Tab Hakkında") },
               label = { Text(stringResource(R.string.about_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
               colors = NavigationBarItemDefaults.colors(
@@ -343,7 +395,19 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
                 unselectedIconColor = MoonTextDim,
                 unselectedTextColor = MoonTextDim
               ),
-              modifier = Modifier.testTag("tab_about")
+              modifier = Modifier
+                .testTag("tab_about")
+                .pointerInput(Unit) {
+                  detectTapGestures(
+                    onTap = {
+                      handleBottomBarTap()
+                      viewModel.currentTab = "about"
+                    },
+                    onLongPress = {
+                      handleBottomBarLongPress()
+                    }
+                  )
+                }
             )
           }
         }
@@ -365,18 +429,20 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
         ) {
           Box(
             modifier = Modifier
-              .width(48.dp)
-              .height(48.dp)
-              .background(MoonDarkGray, RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
-              .border(0.8.dp, MoonLightGray, RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
-              .clickable { isBottomBarVisible = true },
+              .width(56.dp)
+              .height(56.dp)
+              .background(MoonDarkGray, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
+              .border(0.8.dp, MoonLightGray, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
+              .clickable { 
+                isBottomBarVisible = true 
+                bottomBarTapCount = 0
+              },
             contentAlignment = Alignment.Center
           ) {
-            Icon(
-              imageVector = Icons.Filled.PlayArrow,
+            Image(
+              painter = painterResource(id = R.drawable.ic_launcher_foreground),
               contentDescription = "Menüyü Göster",
-              tint = MoonWhite,
-              modifier = Modifier.size(20.dp)
+              modifier = Modifier.size(48.dp)
             )
           }
         }
@@ -1120,24 +1186,23 @@ fun AboutScreen(innerPadding: PaddingValues) {
       version = "v1.2.0",
       date = "23.05.2026",
       title = "Tam Ekran & Gece Modu Revizyonu",
-      details = "• Tam Ekran Uyumluluğu: Video oynatıcılar tam ekrana alındığında, üstteki şarj durumu ve alttaki sistem geri gitme/home tuş çubukları artık otomatik olarak gizlenerek tam uyumlu immersive sarmal deneyim sağlar.\n" +
-                "• Monokrom Premium Tema: Tüm mavi, sarı renk canlandırmaları kaldırılarak göz yormayan, saf düzey Siyah-Beyaz tonlarda kurumsal minimalist OLED teması geliştirildi.\n" +
-                "• Köşeli Minimalizm: Kurumsal formata uygun şekilde pencereler ve butonlar 4.dp olarak keskinleştirildi ('Köşeli Tasarım').\n" +
-                "• Geliştirici Blog Modülü: Gelişmeleri ve güncelleme raporlarını takip edebileceğiniz 'Yenilikler' mikroblogu eklendi.\n" +
-                "• Güçlü Geliştirici Kadrosu: Uygulamamıza batusql, veraildex, Furkannysq ve techwizardi katkıda bulunanlar listesine dahil edildi."
+      details = "• Tam Ekran Entegrasyonu: Video oynatma esnasında sistem çubukları otomatik olarak gizlenerek tam ekran sarmal (immersive) izleme deneyimi sunulur.\n" +
+                "• Monokrom OLED Tasarımı: Göz yorgunluğunu en aza indiren, saf siyah-beyaz tonlara sahip kurumsal minimalist OLED arayüzü entegre edildi.\n" +
+                "• Köşeli Minimalizm: Modern tasarım dili doğrultusunda tüm pencereler ve düğmeler 4dp kesme yapısıyla yenilendi.\n" +
+                "• Güncelleme ve Haber Filtresi: Gelişmeleri ve güncelleme raporlarını takip edebileceğiniz kurumsal blog modülü eklendi."
     ),
     UpdateItem(
       version = "v1.1.0",
       date = "15.05.2026",
-      title = "Kullanıcı Profilleri & Kararlılık",
-      details = "• Yorum Arşivi: Anonim oylama tabanından isim ve takma ad girişli yerel veri tabanı tabanına geçiş yapıldı.\n" +
-                "• Çevrimdışı Koruması: İnternet gidince sayfa kilitlenmesini önleyen yedek çevrimdışı ön paneli kurgulandı."
+      title = "Bağlantı ve Kararlılık İyileştirmeleri",
+      details = "• Yerel Veri Saklama Altyapısı: Kullanıcı geri bildirimlerini daha kararlı yönetebilmek amacıyla yerel veri tabanı entegrasyonu güçlendirildi.\n" +
+                "• Bağlantı Durumu Denetleyici: İnternet bağlantısının kesildiği durumlarda kullanıcıyı bilgilendiren anlık bağlantı denetleyicisi eklendi."
     ),
     UpdateItem(
       version = "v1.0.0",
       date = "01.05.2026",
       title = "Moonzer Platformu Yayında",
-      details = "• İlk Büyük Sürüm: Kusursuz film ve dizi detaylarına erişebilmenizi sağlayan hızlı entegrasyon arayüzü yayına alındı."
+      details = "• İlk Büyük Sürüm: Film ve dizi arama, detaylandırma ve hızlı entegrasyon özelliklerini barındıran temel sürüm yayına alındı."
     )
   )
 
@@ -1157,7 +1222,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
 
     // Sleek premium upper tracking tag
     Text(
-      text = "ANDROID PREMIUM SYSTEM",
+      text = "MOONZER CORE SYSTEM",
       style = TextStyle(
         color = MoonWhite,
         fontSize = 10.sp,
@@ -1332,7 +1397,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
         ) {
           Text("Sürüm", color = MoonTextDim, fontSize = 13.sp)
           Text(
-            text = "1.2.0 (Premium Build)",
+            text = "1.2.0 Stable",
             color = MoonWhite,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
@@ -1382,11 +1447,11 @@ fun AboutScreen(innerPadding: PaddingValues) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
       ) {
         listOf(
-          "kayrasql" to "Kurucu",
-          "batusql" to "Yönetici",
-          "veraildex" to "Yönetici",
+          "Kayrasql" to "Kurucu",
+          "Batusql" to "Yönetici",
+          "Veraildez" to "Yönetici",
           "Furkannysq" to "UI Tasarımcısı",
-          "techwizardi" to "Geliştirici"
+          "Techwizardi" to "Geliştirici"
         ).forEach { (dev, role) ->
           Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1539,7 +1604,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
       modifier = Modifier.fillMaxWidth()
     ) {
       Text(
-        text = "Moonzer, üstün dizi ve film arama rehberliği sunan premium bir uygulamadır. Siyah-Beyaz monokrom tonajlar içeren profesyonel arayüz tasarımı ve dahili yüksek hızlı bağlantı entegrasyonuyla mükemmel akıcılık sağlar.",
+        text = "Moonzer, üstün dizi ve film arama rehberliği sunan profesyonel bir kılavuz uygulamasıdır. Siyah-Beyaz monokrom tonajlar içeren kurumsal arayüz tasarımı ve dahili yüksek hızlı bağlantı entegrasyonuyla mükemmel akıcılık sağlar.",
         color = MoonTextDim,
         fontSize = 11.sp,
         lineHeight = 17.sp,

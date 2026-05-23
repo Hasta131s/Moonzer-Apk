@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Moonzer</string>
+    <string name="home_tab">Moonzer</string>
+    <string name="rate_tab">Puan Ver</string>
+    <string name="about_tab">Hakkında</string>
+    <string name="creator_label">Yapımcı</string>
+    <string name="version_label">Versiyon</string>
+</resources>

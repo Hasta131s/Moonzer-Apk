@@ -1,0 +1,6 @@
+{
+  "name": "Moonzer",
+  "description": "Android uyumlu ve kullanıcı dostu, siyah temalı Moonzer Film Dizi İzleme Uygulaması.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

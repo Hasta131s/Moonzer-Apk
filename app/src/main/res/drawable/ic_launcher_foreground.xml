@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Left: Stylized 'N' / Play button mask -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,32 L52,50 L52,62 L26,76 Z" />
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M26,76 L36,76 L52,62 L52,50 Z" />
+
+    <!-- Right: Stylized Owl Head and Eyes -->
+    <!-- Owl Ears and Brow -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51,46 C55,41 62,41 66,45 C70,41 77,41 81,46 M51,46 L81,46 L74,38 L58,38 Z" />
+        
+    <!-- Owl Big Eyes (Circular Outlines) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54 A6,6 0 1,1 66,54 A6,6 0 1,1 54,54 Z M56,54 A4,4 0 1,0 64,54 A4,4 0 1,0 56,54 Z" />
+        
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M69,54 A6,6 0 1,1 81,54 A6,6 0 1,1 69,54 Z M71,54 A4,4 0 1,0 79,54 A4,4 0 1,0 71,54 Z" />
+        
+    <!-- Owl Pupils -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M59,54 A1.5,1.5 0 1,1 62,54 A1.5,1.5 0 1,1 59,54 Z" />
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M74,54 A1.5,1.5 0 1,1 77,54 A1.5,1.5 0 1,1 74,54 Z" />
+
+    <!-- Owl Beak -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M66,54 L70,54 L68,60 Z" />
+
+    <!-- Subtle support feathers -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M60,65 C64,71 72,71 76,65 L76,60 C72,63 64,63 60,60 Z" />
+</vector>

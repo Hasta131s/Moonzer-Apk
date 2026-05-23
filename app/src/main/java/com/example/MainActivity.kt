@@ -97,11 +97,17 @@ import com.example.ui.theme.MoonLightGray
 import com.example.ui.theme.MoonMediumGray
 import com.example.ui.theme.MoonTextDim
 import com.example.ui.theme.MoonWhite
+import com.example.ui.theme.MoonRedError
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import android.app.Activity
+import android.content.pm.ActivityInfo
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.ui.unit.LayoutDirection
 import java.util.Date
 import java.util.Locale
 
@@ -145,6 +151,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   var isWebLoading by mutableStateOf(true)
   var webViewError by mutableStateOf(false)
 
+  // HTML5 Video Fullscreen variables
+  var fullscreenCustomView by mutableStateOf<android.view.View?>(null)
+  var customViewCallback by mutableStateOf<WebChromeClient.CustomViewCallback?>(null)
+
+  fun exitFullscreen() {
+    customViewCallback?.onCustomViewHidden()
+    fullscreenCustomView = null
+    customViewCallback = null
+  }
+
   fun checkOnline(): Boolean {
     val connectivityManager = getApplication<Application>()
       .getSystemService(Application.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
@@ -153,9 +169,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
   }
 
-  fun insertRating(stars: Int, feedback: String) {
+  fun insertRating(userName: String, stars: Int, feedback: String) {
     viewModelScope.launch {
-      repository.insert(UserRating(stars = stars, feedback = feedback))
+      val nameToInsert = if (userName.trim().isEmpty()) "Anonim" else userName.trim()
+      repository.insert(UserRating(userName = nameToInsert, stars = stars, feedback = feedback))
     }
   }
 }
@@ -167,94 +184,115 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
   val avgRatingOpt by viewModel.averageRating.collectAsState()
   val avgRating = avgRatingOpt ?: 0f
 
-  Scaffold(
-    modifier = Modifier.fillMaxSize().background(MoonBlack),
-    bottomBar = {
-      NavigationBar(
-        containerColor = MoonDarkGray,
-        tonalElevation = 0.dp,
-        modifier = Modifier
-          .navigationBarsPadding()
-          .height(68.dp)
-          .border(width = 1.dp, color = MoonLightGray, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-      ) {
-        NavigationBarItem(
-          selected = currentTab == "home",
-          onClick = { viewModel.currentTab = "home" },
-          icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Tab Moonzer") },
-          label = { Text(stringResource(R.string.home_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-          colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = MoonWhite,
-            selectedTextColor = MoonGold,
-            indicatorColor = MoonGold.copy(alpha = 0.15f),
-            unselectedIconColor = MoonTextDim,
-            unselectedTextColor = MoonTextDim
-          ),
-          modifier = Modifier.testTag("tab_home")
-        )
+  val fullscreenCustomView = viewModel.fullscreenCustomView
 
-        NavigationBarItem(
-          selected = currentTab == "rate",
-          onClick = { viewModel.currentTab = "rate" },
-          icon = { Icon(Icons.Filled.Star, contentDescription = "Tab Puan Ver") },
-          label = { Text(stringResource(R.string.rate_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-          colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = MoonWhite,
-            selectedTextColor = MoonGold,
-            indicatorColor = MoonGold.copy(alpha = 0.15f),
-            unselectedIconColor = MoonTextDim,
-            unselectedTextColor = MoonTextDim
-          ),
-          modifier = Modifier.testTag("tab_rate")
-        )
-
-        NavigationBarItem(
-          selected = currentTab == "about",
-          onClick = { viewModel.currentTab = "about" },
-          icon = { Icon(Icons.Filled.Info, contentDescription = "Tab Hakkında") },
-          label = { Text(stringResource(R.string.about_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-          colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = MoonWhite,
-            selectedTextColor = MoonGold,
-            indicatorColor = MoonGold.copy(alpha = 0.15f),
-            unselectedIconColor = MoonTextDim,
-            unselectedTextColor = MoonTextDim
-          ),
-          modifier = Modifier.testTag("tab_about")
-        )
-      }
-    }
-  ) { innerPadding ->
+  if (fullscreenCustomView != null) {
     Box(
       modifier = Modifier
         .fillMaxSize()
-        .background(MoonBlack)
+        .background(Color.Black)
     ) {
-      when (currentTab) {
-        "home" -> {
-          // Verify online connectivity state on load/retry
-          val isConnected = viewModel.checkOnline()
-          if (!isConnected) {
-            viewModel.webViewError = true
-            viewModel.isWebLoading = false
-          }
+      AndroidView(
+        modifier = Modifier.fillMaxSize(),
+        factory = {
+          (fullscreenCustomView.parent as? android.view.ViewGroup)?.removeView(fullscreenCustomView)
+          fullscreenCustomView
+        }
+      )
+      BackHandler {
+        viewModel.exitFullscreen()
+      }
+    }
+  } else {
+    Scaffold(
+      modifier = Modifier.fillMaxSize().background(MoonBlack),
+      bottomBar = {
+        NavigationBar(
+          containerColor = Color(0xDC101010), // Sleek OLED Translucent charcoal for blur emulation
+          tonalElevation = 0.dp,
+          modifier = Modifier
+            .navigationBarsPadding()
+            .height(68.dp)
+            .border(width = 1.dp, color = MoonLightGray, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+        ) {
+          NavigationBarItem(
+            selected = currentTab == "home",
+            onClick = { viewModel.currentTab = "home" },
+            icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Tab Moonzer") },
+            label = { Text(stringResource(R.string.home_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+            colors = NavigationBarItemDefaults.colors(
+              selectedIconColor = MoonWhite,
+              selectedTextColor = MoonGold,
+              indicatorColor = MoonGold.copy(alpha = 0.15f),
+              unselectedIconColor = MoonTextDim,
+              unselectedTextColor = MoonTextDim
+            ),
+            modifier = Modifier.testTag("tab_home")
+          )
 
-          MovieWebViewScreen(
-            url = "https://moonzer.bilipbilmeden.com",
-            innerPadding = innerPadding,
-            viewModel = viewModel
+          NavigationBarItem(
+            selected = currentTab == "rate",
+            onClick = { viewModel.currentTab = "rate" },
+            icon = { Icon(Icons.Filled.Star, contentDescription = "Tab Puan Ver") },
+            label = { Text(stringResource(R.string.rate_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+            colors = NavigationBarItemDefaults.colors(
+              selectedIconColor = MoonWhite,
+              selectedTextColor = MoonGold,
+              indicatorColor = MoonGold.copy(alpha = 0.15f),
+              unselectedIconColor = MoonTextDim,
+              unselectedTextColor = MoonTextDim
+            ),
+            modifier = Modifier.testTag("tab_rate")
+          )
+
+          NavigationBarItem(
+            selected = currentTab == "about",
+            onClick = { viewModel.currentTab = "about" },
+            icon = { Icon(Icons.Filled.Info, contentDescription = "Tab Hakkında") },
+            label = { Text(stringResource(R.string.about_tab), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+            colors = NavigationBarItemDefaults.colors(
+              selectedIconColor = MoonWhite,
+              selectedTextColor = MoonGold,
+              indicatorColor = MoonGold.copy(alpha = 0.15f),
+              unselectedIconColor = MoonTextDim,
+              unselectedTextColor = MoonTextDim
+            ),
+            modifier = Modifier.testTag("tab_about")
           )
         }
-        "rate" -> {
-          RatingScreen(
-            ratings = ratings,
-            average = avgRating,
-            innerPadding = innerPadding,
-            onSubmit = { stars, text -> viewModel.insertRating(stars, text) }
-          )
-        }
-        "about" -> {
-          AboutScreen(innerPadding = innerPadding)
+      }
+    ) { innerPadding ->
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(MoonBlack)
+      ) {
+        when (currentTab) {
+          "home" -> {
+            // Verify online connectivity state on load/retry
+            val isConnected = viewModel.checkOnline()
+            if (!isConnected) {
+              viewModel.webViewError = true
+              viewModel.isWebLoading = false
+            }
+
+            MovieWebViewScreen(
+              url = "https://moonzer.bilipbilmeden.com",
+              innerPadding = innerPadding,
+              viewModel = viewModel
+            )
+          }
+          "rate" -> {
+            RatingScreen(
+              ratings = ratings,
+              average = avgRating,
+              innerPadding = innerPadding,
+              onSubmit = { name, stars, text -> viewModel.insertRating(name, stars, text) }
+            )
+          }
+          "about" -> {
+            AboutScreen(innerPadding = innerPadding)
+          }
         }
       }
     }
@@ -278,7 +316,10 @@ fun MovieWebViewScreen(
     modifier = Modifier
       .fillMaxSize()
       .background(MoonBlack)
-      .padding(innerPadding)
+      .padding(
+        top = innerPadding.calculateTopPadding(),
+        bottom = 0.dp
+      )
   ) {
     if (viewModel.webViewError) {
       // Elegant customized dark screen representing the offline state specified in "bu site hata verirse kapalı olsun"
@@ -403,6 +444,40 @@ fun MovieWebViewScreen(
                   viewModel.isWebLoading = false
                 }
               }
+
+              override fun onShowCustomView(view: android.view.View?, callback: CustomViewCallback?) {
+                super.onShowCustomView(view, callback)
+                if (viewModel.fullscreenCustomView != null) {
+                  callback?.onCustomViewHidden()
+                  return
+                }
+                viewModel.fullscreenCustomView = view
+                viewModel.customViewCallback = callback
+                
+                try {
+                  val activity = context as? Activity
+                  activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                } catch (e: Exception) {
+                  e.printStackTrace()
+                }
+              }
+
+              override fun onHideCustomView() {
+                super.onHideCustomView()
+                if (viewModel.fullscreenCustomView == null) {
+                  return
+                }
+                viewModel.fullscreenCustomView = null
+                viewModel.customViewCallback?.onCustomViewHidden()
+                viewModel.customViewCallback = null
+                
+                try {
+                  val activity = context as? Activity
+                  activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                } catch (e: Exception) {
+                  e.printStackTrace()
+                }
+              }
             }
 
             loadUrl(url)
@@ -440,8 +515,10 @@ fun RatingScreen(
     ratings: List<UserRating>,
     average: Float,
     innerPadding: PaddingValues,
-    onSubmit: (Int, String) -> Unit
+    onSubmit: (String, Int, String) -> Unit
 ) {
+  var userNameText by remember { mutableStateOf("") }
+  var nameError by remember { mutableStateOf(false) }
   var selectedStars by remember { mutableIntStateOf(5) }
   var feedbackText by remember { mutableStateOf("") }
   var hasSubmitted by remember { mutableStateOf(false) }
@@ -534,9 +611,58 @@ fun RatingScreen(
               fontSize = 15.sp,
               fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // User Name Input
+            Text(
+              text = "Kullanıcı Adı / Takma Ad",
+              color = MoonWhite,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+              modifier = Modifier.padding(bottom = 6.dp)
+            )
+            OutlinedTextField(
+              value = userNameText,
+              onValueChange = { 
+                userNameText = it
+                if (it.isNotBlank()) nameError = false
+              },
+              placeholder = { Text("Lütfen isminizi giriniz...", color = MoonTextDim, fontSize = 14.sp) },
+              modifier = Modifier.fillMaxWidth().testTag("username_input"),
+              textStyle = TextStyle(color = MoonWhite, fontSize = 14.sp),
+              isError = nameError,
+              colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = MoonWhite,
+                unfocusedTextColor = MoonWhite,
+                focusedContainerColor = MoonMediumGray,
+                unfocusedContainerColor = MoonMediumGray,
+                focusedBorderColor = MoonGold,
+                unfocusedBorderColor = MoonLightGray,
+                errorBorderColor = MoonRedError
+              ),
+              shape = RoundedCornerShape(12.dp),
+              keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+              singleLine = true
+            )
+            if (nameError) {
+              Text(
+                text = "Lütfen değerlendirmek için bir isim giriniz.",
+                color = MoonRedError,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+              )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Rating Star Selector
+            Text(
+              text = "Puanınız",
+              color = MoonWhite,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+              modifier = Modifier.padding(bottom = 6.dp)
+            )
             Row(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.Center
@@ -559,6 +685,13 @@ fun RatingScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            Text(
+              text = "Yorumunuz",
+              color = MoonWhite,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+              modifier = Modifier.padding(bottom = 6.dp)
+            )
             OutlinedTextField(
               value = feedbackText,
               onValueChange = { feedbackText = it },
@@ -583,8 +716,12 @@ fun RatingScreen(
 
             Button(
               onClick = {
-                onSubmit(selectedStars, feedbackText)
-                hasSubmitted = true
+                if (userNameText.trim().isEmpty()) {
+                  nameError = true
+                } else {
+                  onSubmit(userNameText, selectedStars, feedbackText)
+                  hasSubmitted = true
+                }
               },
               colors = ButtonDefaults.buttonColors(containerColor = MoonGold, contentColor = Color.Black),
               shape = RoundedCornerShape(12.dp),
@@ -646,14 +783,23 @@ fun RatingScreen(
               horizontalArrangement = Arrangement.SpaceBetween,
               verticalAlignment = Alignment.CenterVertically
             ) {
-              Row {
-                repeat(5) { idx ->
-                  Icon(
-                    imageVector = Icons.Filled.Star,
-                    contentDescription = null,
-                    tint = if (idx < rating.stars) MoonGold else MoonGold.copy(alpha = 0.25f),
-                    modifier = Modifier.size(14.dp)
-                  )
+              Column {
+                Text(
+                  text = rating.userName,
+                  color = MoonGold,
+                  fontSize = 13.sp,
+                  fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row {
+                  repeat(5) { idx ->
+                    Icon(
+                      imageVector = Icons.Filled.Star,
+                      contentDescription = null,
+                      tint = if (idx < rating.stars) MoonGold else MoonGold.copy(alpha = 0.25f),
+                      modifier = Modifier.size(12.dp)
+                    )
+                  }
                 }
               }
               val df = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
@@ -846,15 +992,6 @@ fun AboutScreen(innerPadding: PaddingValues) {
         ) {
           Text("Tema", color = MoonTextDim, fontSize = 13.sp)
           Text("Siyah Premium Indigo OLED", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        }
-        
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text("Altyapı", color = MoonTextDim, fontSize = 13.sp)
-          Text("moonzer.bilipbilmeden.com", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         }
 
         // Divider

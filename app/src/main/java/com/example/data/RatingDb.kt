@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 @Entity(tableName = "user_ratings")
 data class UserRating(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userName: String,
     val stars: Int,
     val feedback: String,
     val timestamp: Long = System.currentTimeMillis()
@@ -30,7 +31,7 @@ interface RatingDao {
     fun getAverageRating(): Flow<Float?>
 }
 
-@Database(entities = [UserRating::class], version = 1, exportSchema = false)
+@Database(entities = [UserRating::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun ratingDao(): RatingDao
 }

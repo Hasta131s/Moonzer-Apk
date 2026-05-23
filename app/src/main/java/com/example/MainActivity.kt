@@ -40,6 +40,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
@@ -184,9 +190,44 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
   val avgRatingOpt by viewModel.averageRating.collectAsState()
   val avgRating = avgRatingOpt ?: 0f
 
+  val context = LocalContext.current
+  val activity = context as? Activity
   val fullscreenCustomView = viewModel.fullscreenCustomView
 
   if (fullscreenCustomView != null) {
+    DisposableEffect(Unit) {
+      activity?.window?.let { window ->
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+          window.insetsController?.let { controller ->
+            controller.hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+            controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+          }
+        } else {
+          @Suppress("DEPRECATION")
+          window.decorView.systemUiVisibility = (
+            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+            or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+          )
+        }
+      }
+      onDispose {
+        activity?.window?.let { window ->
+          if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            window.insetsController?.show(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+          } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_VISIBLE
+          }
+        }
+        try {
+          activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } catch (e: Exception) {
+          e.printStackTrace()
+        }
+      }
+    }
+
     Box(
       modifier = Modifier
         .fillMaxSize()
@@ -208,12 +249,12 @@ fun MoonzerApp(viewModel: MainViewModel = viewModel()) {
       modifier = Modifier.fillMaxSize().background(MoonBlack),
       bottomBar = {
         NavigationBar(
-          containerColor = Color(0xDC101010), // Sleek OLED Translucent charcoal for blur emulation
+          containerColor = Color(0xB3000000), // Glassmorphic translucent pure OLED black with high blur aesthetic
           tonalElevation = 0.dp,
           modifier = Modifier
             .navigationBarsPadding()
             .height(68.dp)
-            .border(width = 1.dp, color = MoonLightGray, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .border(width = 0.8.dp, color = MoonLightGray, shape = RoundedCornerShape(0.dp)) // Corporate sharp look
         ) {
           NavigationBarItem(
             selected = currentTab == "home",
@@ -555,7 +596,7 @@ fun RatingScreen(
     item {
       Card(
         colors = CardDefaults.cardColors(containerColor = MoonDarkGray),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(4.dp), // Corporate sharp shape
         border = androidx.compose.foundation.BorderStroke(0.8.dp, MoonLightGray),
         modifier = Modifier.fillMaxWidth()
       ) {
@@ -600,7 +641,8 @@ fun RatingScreen(
     item {
       Card(
         colors = CardDefaults.cardColors(containerColor = MoonDarkGray),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(4.dp), // Corporate sharp shape
+        border = androidx.compose.foundation.BorderStroke(0.8.dp, MoonLightGray),
         modifier = Modifier.fillMaxWidth()
       ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -636,11 +678,11 @@ fun RatingScreen(
                 unfocusedTextColor = MoonWhite,
                 focusedContainerColor = MoonMediumGray,
                 unfocusedContainerColor = MoonMediumGray,
-                focusedBorderColor = MoonGold,
+                focusedBorderColor = MoonWhite,
                 unfocusedBorderColor = MoonLightGray,
                 errorBorderColor = MoonRedError
               ),
-              shape = RoundedCornerShape(12.dp),
+              shape = RoundedCornerShape(4.dp), // Corporate sharp shape
               keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
               singleLine = true
             )
@@ -703,10 +745,10 @@ fun RatingScreen(
                 unfocusedTextColor = MoonWhite,
                 focusedContainerColor = MoonMediumGray,
                 unfocusedContainerColor = MoonMediumGray,
-                focusedBorderColor = MoonGold,
+                focusedBorderColor = MoonWhite,
                 unfocusedBorderColor = MoonLightGray
               ),
-              shape = RoundedCornerShape(12.dp),
+              shape = RoundedCornerShape(4.dp), // Corporate sharp shape
               keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
               maxLines = 4,
               minLines = 2
@@ -723,8 +765,8 @@ fun RatingScreen(
                   hasSubmitted = true
                 }
               },
-              colors = ButtonDefaults.buttonColors(containerColor = MoonGold, contentColor = Color.Black),
-              shape = RoundedCornerShape(12.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = MoonWhite, contentColor = Color.Black),
+              shape = RoundedCornerShape(4.dp), // Corporate sharp shape
               modifier = Modifier.fillMaxWidth().height(48.dp).testTag("submit_button")
             ) {
               Text("Değerlendirmeyi Gönder", fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -773,7 +815,7 @@ fun RatingScreen(
       items(ratings) { rating ->
         Card(
           colors = CardDefaults.cardColors(containerColor = MoonDarkGray.copy(alpha = 0.5f)),
-          shape = RoundedCornerShape(12.dp),
+          shape = RoundedCornerShape(4.dp), // Corporate sharp shape
           border = androidx.compose.foundation.BorderStroke(0.6.dp, MoonLightGray),
           modifier = Modifier.fillMaxWidth()
         ) {
@@ -840,10 +882,42 @@ fun RatingScreen(
 
 @Composable
 fun AboutScreen(innerPadding: PaddingValues) {
+  var expandedUpdateIndex by remember { mutableStateOf<Int?>(0) } // Default expanded first entry
+
+  val updates = listOf(
+    UpdateItem(
+      version = "v1.2.0",
+      date = "23.05.2026",
+      title = "Tam Ekran & Gece Modu Revizyonu",
+      details = "• Tam Ekran Uyumluluğu: Video oynatıcılar tam ekrana alındığında, üstteki şarj durumu ve alttaki sistem geri gitme/home tuş çubukları artık otomatik olarak gizlenerek tam uyumlu immersive sarmal deneyim sağlar.\n" +
+                "• Monokrom Premium Tema: Tüm mavi, sarı renk canlandırmaları kaldırılarak göz yormayan, saf düzey Siyah-Beyaz tonlarda kurumsal minimalist OLED teması geliştirildi.\n" +
+                "• Köşeli Minimalizm: Kurumsal formata uygun şekilde pencereler ve butonlar 4.dp olarak keskinleştirildi ('Köşeli Tasarım').\n" +
+                "• Geliştirici Blog Modülü: Gelişmeleri ve güncelleme raporlarını takip edebileceğiniz 'Yenilikler' mikroblogu eklendi.\n" +
+                "• Güçlü Geliştirici Kadrosu: Uygulamamıza batusql, furkanveraildez, Furkannysq ve techwizardi katkıda bulunanlar listesine dahil edildi."
+    ),
+    UpdateItem(
+      version = "v1.1.0",
+      date = "15.05.2026",
+      title = "Kullanıcı Profilleri & Kararlılık",
+      details = "• Yorum Arşivi: Anonim oylama tabanından isim ve takma ad girişli yerel veri tabanı tabanına geçiş yapıldı.\n" +
+                "• Çevrimdışı Koruması: İnternet gidince sayfa kilitlenmesini önleyen yedek çevrimdışı ön paneli kurgulandı."
+    ),
+    UpdateItem(
+      version = "v1.0.0",
+      date = "01.05.2026",
+      title = "Moonzer Platformu Yayında",
+      details = "• İlk Büyük Sürüm: Kusursuz film ve dizi detaylarına erişebilmenizi sağlayan hızlı entegrasyon arayüzü yayına alındı."
+    )
+  )
+
   Column(
     modifier = Modifier
       .fillMaxSize()
-      .padding(innerPadding)
+      .padding(
+        top = innerPadding.calculateTopPadding(),
+        bottom = 0.dp
+      )
+      .verticalScroll(rememberScrollState())
       .padding(horizontal = 24.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Top
@@ -864,57 +938,57 @@ fun AboutScreen(innerPadding: PaddingValues) {
 
     Spacer(modifier = Modifier.height(18.dp))
 
-    // Craft custom glowing Crescent Moon & Owl Eyes graphics instead of unstyled icons
+    // Sharp corporate themed Crescent Moon Box (Köşeli modern)
     Box(
       modifier = Modifier
-        .size(150.dp)
-        .background(MoonDarkGray, CircleShape)
-        .border(1.dp, MoonGold.copy(alpha = 0.25f), CircleShape),
+        .size(120.dp)
+        .background(MoonDarkGray, RoundedCornerShape(4.dp))
+        .border(1.dp, MoonLightGray, RoundedCornerShape(4.dp)),
       contentAlignment = Alignment.Center
     ) {
-      Canvas(modifier = Modifier.size(100.dp)) {
-        // Draw elegant crescent moon using updated Royal Indigo color
+      Canvas(modifier = Modifier.size(80.dp)) {
+        // Draw elegant crescent moon using White
         drawArc(
-          color = MoonGold,
+          color = MoonWhite,
           startAngle = -45f,
           sweepAngle = 180f,
           useCenter = false,
-          style = Stroke(width = 8f),
-          topLeft = Offset(10f, 10f),
+          style = Stroke(width = 6f),
+          topLeft = Offset(8f, 8f),
           size = size * 0.8f
         )
         
         // Draw stylized owl face circles (eyes)
         drawCircle(
           color = MoonWhite,
-          radius = 11f,
+          radius = 9f,
           center = Offset(size.width * 0.4f, size.height * 0.55f),
-          style = Stroke(width = 3.5f)
+          style = Stroke(width = 3f)
         )
         drawCircle(
           color = MoonWhite,
-          radius = 11f,
+          radius = 9f,
           center = Offset(size.width * 0.65f, size.height * 0.55f),
-          style = Stroke(width = 3.5f)
+          style = Stroke(width = 3f)
         )
         // Pupils
         drawCircle(
-          color = MoonGold,
-          radius = 4.5f,
+          color = MoonWhite,
+          radius = 3.5f,
           center = Offset(size.width * 0.4f, size.height * 0.55f)
         )
         drawCircle(
-          color = MoonGold,
-          radius = 4.5f,
+          color = MoonWhite,
+          radius = 3.5f,
           center = Offset(size.width * 0.65f, size.height * 0.55f)
         )
         
         // Soft beak triangle
         drawLine(
-          color = MoonGold,
+          color = MoonWhite,
           start = Offset(size.width * 0.525f, size.height * 0.61f),
           end = Offset(size.width * 0.525f, size.height * 0.68f),
-          strokeWidth = 3.5f
+          strokeWidth = 3f
         )
       }
     }
@@ -935,19 +1009,127 @@ fun AboutScreen(innerPadding: PaddingValues) {
 
     Text(
       text = "Film & Dizi İzleme Uygulaması",
-      color = MoonGold,
+      color = MoonWhite,
       fontSize = 12.sp,
       fontWeight = FontWeight.Bold,
       letterSpacing = 1.5.sp,
       modifier = Modifier.padding(top = 2.dp)
     )
 
+    Spacer(modifier = Modifier.height(28.dp))
+
+    // --- YENİLİKLER SEKSİYONU (WHAT'S NEW BLOG) ---
+    Text(
+      text = "YENİLİKLER VE BÜLTEN",
+      color = MoonWhite,
+      fontSize = 13.sp,
+      fontWeight = FontWeight.Black,
+      letterSpacing = 2.sp,
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 12.dp),
+      textAlign = TextAlign.Start
+    )
+
+    updates.forEachIndexed { index, update ->
+      val isExpanded = expandedUpdateIndex == index
+      Card(
+        colors = CardDefaults.cardColors(
+          containerColor = if (isExpanded) MoonDarkGray else MoonDarkGray.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(4.dp), // Kurumsal Köşeli
+        border = androidx.compose.foundation.BorderStroke(
+          width = if (isExpanded) 1.dp else 0.8.dp,
+          color = if (isExpanded) MoonWhite.copy(alpha = 0.6f) else MoonLightGray
+        ),
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(bottom = 10.dp)
+          .clickable {
+            expandedUpdateIndex = if (isExpanded) null else index
+          }
+      ) {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp)
+            .animateContentSize()
+        ) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+              Box(
+                modifier = Modifier
+                  .background(if (isExpanded) MoonWhite else Color.Transparent, RoundedCornerShape(2.dp))
+                  .border(1.dp, MoonWhite, RoundedCornerShape(2.dp))
+                  .padding(horizontal = 6.dp, vertical = 2.dp)
+              ) {
+                Text(
+                  text = update.version,
+                  color = if (isExpanded) Color.Black else MoonWhite,
+                  fontSize = 10.sp,
+                  fontWeight = FontWeight.Black
+                )
+              }
+              Text(
+                text = update.title,
+                color = MoonWhite,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(0.6f)
+              )
+            }
+            Text(
+              text = update.date,
+              color = MoonTextDim,
+              fontSize = 10.sp,
+              fontFamily = FontFamily.Monospace
+            )
+          }
+
+          if (isExpanded) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(MoonLightGray))
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+              text = update.details,
+              color = MoonTextDim,
+              fontSize = 11.sp,
+              lineHeight = 17.sp,
+              textAlign = TextAlign.Start,
+              modifier = Modifier.fillMaxWidth()
+            )
+          }
+        }
+      }
+    }
+
     Spacer(modifier = Modifier.height(24.dp))
 
-    // Yapımcı & Versiyon metadata
+    // --- HAKKINDA / KURUMSAL BİLGİ SEKSİYONU ---
+    Text(
+      text = "KURUMSAL BİLGİLER",
+      color = MoonWhite,
+      fontSize = 13.sp,
+      fontWeight = FontWeight.Black,
+      letterSpacing = 2.sp,
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 12.dp),
+      textAlign = TextAlign.Start
+    )
+
     Card(
       colors = CardDefaults.cardColors(containerColor = MoonDarkGray),
-      shape = RoundedCornerShape(24.dp),
+      shape = RoundedCornerShape(4.dp), // Kurumsal Köşeli
       border = androidx.compose.foundation.BorderStroke(1.dp, MoonLightGray),
       modifier = Modifier.fillMaxWidth()
     ) {
@@ -958,16 +1140,16 @@ fun AboutScreen(innerPadding: PaddingValues) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
+          verticalAlignment = Alignment.Top
         ) {
-          Text("Yapımcı", color = MoonTextDim, fontSize = 13.sp)
-          Text(
-            text = "kayrasql",
-            color = MoonGold,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag("app_creator")
-          )
+          Text("Emeği Geçenler", color = MoonTextDim, fontSize = 13.sp)
+          Column(horizontalAlignment = Alignment.End) {
+            Text("kayrasql", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("batusql", color = MoonWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text("furkanveraildez", color = MoonWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text("Furkannysq", color = MoonWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text("techwizardi", color = MoonWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+          }
         }
 
         Row(
@@ -977,7 +1159,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
         ) {
           Text("Uygulama Versiyonu", color = MoonTextDim, fontSize = 13.sp)
           Text(
-            text = "1.0 (Versiyon 1)",
+            text = "1.2.0 (Premium build)",
             color = MoonWhite,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
@@ -991,7 +1173,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
           verticalAlignment = Alignment.CenterVertically
         ) {
           Text("Tema", color = MoonTextDim, fontSize = 13.sp)
-          Text("Siyah Premium Indigo OLED", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+          Text("Premium Monokrom OLED", color = MoonWhite, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         }
 
         // Divider
@@ -1008,7 +1190,7 @@ fun AboutScreen(innerPadding: PaddingValues) {
           verticalAlignment = Alignment.CenterVertically
         ) {
           Text(
-            text = "APK_ID: MOON_01_PRO",
+            text = "APK_ID: MOON_02_ULTRA",
             color = MoonTextDim.copy(alpha = 0.6f),
             fontSize = 10.sp,
             fontFamily = FontFamily.Monospace
@@ -1038,18 +1220,27 @@ fun AboutScreen(innerPadding: PaddingValues) {
 
     Card(
       colors = CardDefaults.cardColors(containerColor = MoonDarkGray.copy(alpha = 0.4f)),
-      shape = RoundedCornerShape(16.dp),
+      shape = RoundedCornerShape(4.dp), // Kurumsal Köşeli
       border = androidx.compose.foundation.BorderStroke(1.dp, MoonLightGray.copy(alpha = 0.5f)),
       modifier = Modifier.fillMaxWidth()
     ) {
       Text(
-        text = "Yepyeni bir film ve dizi izleme deneyimi sunan Moonzer, en sevdiğiniz film ve dizi serilerine tek bir dokunuşla ulaşmanızı sağlar. Siyah temalı şık arayüzü göz sağlığınızı korurken kesintisiz bir deneyim sunmaktadır.",
+        text = "Moonzer, üstün dizi ve film arama rehberliği sunan premium bir uygulamadır. Siyah-Beyaz monokrom tonajlar içeren profesyonel arayüz tasarımı ve dahili yüksek hızlı bağlantı entegrasyonuyla mükemmel akıcılık sağlar.",
         color = MoonTextDim,
-        fontSize = 12.sp,
-        lineHeight = 18.sp,
+        fontSize = 11.sp,
+        lineHeight = 17.sp,
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(14.dp)
       )
     }
+
+    Spacer(modifier = Modifier.height(40.dp))
   }
 }
+
+data class UpdateItem(
+  val version: String,
+  val date: String,
+  val title: String,
+  val details: String
+)

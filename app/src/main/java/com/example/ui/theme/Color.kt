@@ -2,13 +2,13 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Sleek Interface Design Guidelines
-val MoonBlack = Color(0xFF0A0A0A)      // Deep charcoal/black (#0A0A0A)
-val MoonDarkGray = Color(0xFF141414)   // Sleek elements container (#141414)
-val MoonLightGray = Color(0x1AFFFFFF)  // Subtle container borders (White with 10% opacity)
-val MoonGold = Color(0xFF6366F1)       // Sleek Royal Indigo brand color (#6366F1)
-val MoonMediumGray = Color(0xFF1A1A1A) // Elegant text field interior
-val MoonWhite = Color(0xFFFFFFFF)      // High contrast pure white text
-val MoonTextDim = Color(0xFFA3A3A3)    // Sleek medium-gray text for balance
-val MoonRedError = Color(0xFFEF4444)   // Tailored vibrant error red
+// Sleek Interface Design Guidelines - Pure Black & White (Monochromatic)
+val MoonBlack = Color(0xFF000000)      // Pure sleek OLED black (#000000)
+val MoonDarkGray = Color(0xFF0C0C0C)   // Sleek elements container (#0C0C0C)
+val MoonLightGray = Color(0x33FFFFFF)  // Subtle container borders (White with 20% opacity)
+val MoonGold = Color(0xFFFFFFFF)       // Monochromatic Accent (High-contrast pure white)
+val MoonMediumGray = Color(0xFF161616) // Elegant sharp input interior
+val MoonWhite = Color(0xFFFFFFFF)      // Pure white text
+val MoonTextDim = Color(0xFF8E8E93)    // Sleek medium-gray text for premium balance
+val MoonRedError = Color(0xFFFF3B30)   // iOS/Premium vibrant error red
 
